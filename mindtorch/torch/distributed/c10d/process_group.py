@@ -4,12 +4,16 @@ from typing import List, Optional, Dict, Any
 from enum import Enum
 import time
 from mindspore.communication.comm_func import barrier, broadcast, reduce, gather_into_tensor, scatter_tensor
-from mindspore.ops.auto_generate.gen_ops_prim import (dist_comm_all_reduce_op, dist_comm_all_gather_op,
-                                                      dist_comm_all_gather_into_tensor_op, dist_comm_reduce_scatter_op,
-                                                      dist_comm_reduce_scatter_tensor_op, dist_comm_barrier_op,
-                                                      dist_comm_scatter_op, dist_comm_gather_op,
-                                                      dist_comm_irecv_op, dist_comm_broadcast_op,
-                                                      dist_comm_isend_op)
+try:
+    from mindspore.ops.auto_generate.gen_ops_prim import (dist_comm_all_reduce_op, dist_comm_all_gather_op,
+                                                        dist_comm_all_gather_into_tensor_op, dist_comm_reduce_scatter_op,
+                                                        dist_comm_reduce_scatter_tensor_op, dist_comm_barrier_op,
+                                                        dist_comm_scatter_op, dist_comm_gather_op,
+                                                        dist_comm_irecv_op, dist_comm_broadcast_op,
+                                                        dist_comm_isend_op)
+except:
+    pass
+
 class BackendType(Enum):
     UNDEFINED = 0
     GLOO = 1

@@ -1,43 +1,109 @@
+# Copyright 2024 Huawei Technologies Co., Ltd
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ============================================================================
+"""core module"""
 import os
-os.environ["FIX_TORCH_ERROR"] = "0"
+import platform
+from packaging import version
+import mindspore
+from mindspore import context
+from mindspore._c_expression import MSContext # pylint: disable=no-name-in-module, import-error
+# mindspore.set_context(pynative_synchronize=True)
 
-import mindspore as ms
-import mindtorch
-from mindtorch import *
+__version__ = "2.1.0"
 
-__version__ = "2.5.0"
+if 'RANK_TABLE_FILE' in os.environ:
+    del os.environ['RANK_TABLE_FILE']
+DEVICE_TARGET = os.environ.get('DEVICE_TARGET', None)
 
-import sys
-def load_mod(name):
-    exec("import "+name)
-    return eval(name)
+if DEVICE_TARGET is not None and DEVICE_TARGET in ('CPU', 'GPU', 'Ascend'):
+    context.set_context(device_target=DEVICE_TARGET)
 
-autograd = sys.modules["torch.autograd"] = load_mod("mindtorch.autograd")
+if platform.system().lower() == 'linux':
+    SOC = MSContext.get_instance().get_ascend_soc_version()
+    if ('910b' not in SOC and '310' not in SOC) or version.parse(mindspore.__version__) < version.parse('2.4.0'):
+        os.environ["MS_ALLOC_CONF"] = 'enable_vmm:True,vmm_align_size:2MB'
 
-cuda = load_mod("mindtorch.cuda")
-sys.modules["torch.cuda"] = load_mod("mindtorch.cuda")
-sys.modules["torch.npu"] = load_mod("mindtorch.cuda")
-npu = sys.modules["torch.npu"]
-sys.modules["torch.cuda.amp"] = load_mod("mindtorch.cuda.amp")
-sys.modules['torch.optim'] = load_mod("mindtorch.optim")
-sys.modules['torch.optim.lr_scheduler'] = load_mod("mindtorch.optim")
-mindtorch.optim.lr_scheduler = mindtorch.optim
+    if SOC in ('ascend910', 'ascend310b'):
+        context.set_context(ascend_config={"precision_mode": "allow_mix_precision"})
 
-sys.modules["torch.nn"] = load_mod("mindtorch.nn")
-sys.modules["torch.nn.functional"] = load_mod("mindtorch.nn")
-sys.modules["torch.nn.parallel"] = load_mod("mindtorch.distributed")
-sys.modules["torch.nn.modules"] = load_mod("mindtorch.nn")
-sys.modules['torch.nn.modules.module'] = load_mod("mindtorch.nn.modules.module")
-sys.modules["torch.nn.parameter"] = load_mod("mindtorch.nn.parameter")
-sys.modules["torch.nn.utils"] = load_mod("mindtorch.nn")
-sys.modules["torch.utils"] = load_mod("mindtorch.utils")
-sys.modules["torch._utils"] = load_mod("mindtorch._utils")
-sys.modules["torch.utils.data"] = load_mod("mindtorch.utils.data")
-sys.modules["torch.utils.data.sampler"] = load_mod("mindtorch.utils.data.sampler")
-sys.modules["torch.utils.data.distributed"] = load_mod("mindtorch.utils.data")
-sys.modules["torch.utils.checkpoint"] = load_mod("mindtorch.utils.checkpoint")
-sys.modules["torch.utils.hooks"] = load_mod("mindtorch.utils.hooks")
+from torch import _tensor
+from mindspore import jit
+from mindspore.common.dtype import *
+from mindspore.common.dtype import tensor_type as dtype
+from mindspore import Tensor, default_generator, Generator
+from mindspore.hal import Stream
+from mindspore import multiprocessing
+from mindspore.common.api import _pynative_executor
 
-sys.modules["torch.distributed"] = load_mod("mindtorch.distributed")
-_C = sys.modules["torch._C"] = load_mod("mindtorch._C")
-_six = sys.modules["torch._six"] = load_mod("mindtorch._six")
+inf = float("inf")
+nan = float("nan")
+
+class device:
+    def __init__(self, name):
+        pass
+
+from ._C.size import Size
+
+from .ops import *
+from torch.amp import autocast, GradScaler
+from torch import amp as amp, random as random, serialization as serialization, utils as utils
+from torch.random import get_rng_state, initial_seed, manual_seed, seed, set_rng_state
+from torch.serialization import load, save
+from . import optim, ops, nn, distributions, cuda, distributed#, multiprocessing
+from .autograd import no_grad, enable_grad, value_and_grad
+from ._bind import get_default_dtype, set_default_dtype
+
+FloatTensor = Tensor
+HalfTensor = Tensor
+BFloat16Tensor = Tensor
+LongTensor = Tensor
+
+long = int64
+int = int32
+float = float32
+bool = bool_
+cfloat = complex64
+cdouble = complex128
+
+def tensor(data, *, dtype=None, device=None, requires_grad=False, pin_memory=False):
+    return Tensor(data, dtype)
+
+strided = None
+contiguous_format = None
+preserve_format = None
+
+AUTO_CAST_DTYE = {
+    'cuda': bfloat16,
+    'cpu': bfloat16,
+    'npu': float16
+}
+
+def set_autocast_dtype(device_type, dtype):
+    assert device_type in AUTO_CAST_DTYE.keys(), f'{device_type} is not in {AUTO_CAST_DTYE.keys()}'
+    AUTO_CAST_DTYE[device_type] = dtype
+
+def get_autocast_dtype(device_type):
+    return AUTO_CAST_DTYE[device_type]
+
+def is_autocast_enabled(device_type):
+    return False
+
+def use_deterministic_algorithms(flag: bool):
+    context.set_context(deterministic='ON' if flag else 'OFF')
+
+def is_grad_enabled():
+    return _pynative_executor.enable_grad()
+
+__version__ = "2.5"

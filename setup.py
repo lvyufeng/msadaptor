@@ -20,7 +20,7 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     packages=["mindtorch", "torch", "torch_npu"],
-    package_dir={"": "python"},
+    package_dir={"": "mindtorch"},
     package_data={'': ['*', '*/*', '*/*/*','*/*/*/*','*/*/*/*/*','*/*/*/*/*/*']},
     python_requires=">=3.9",
     install_requires=[

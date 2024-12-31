@@ -70,7 +70,7 @@ def _rebuild_tensor_v2(
     backward_hooks,
     metadata=None,
 ):
-    pass
+    return Tensor(storage)
 
 class KeyErrorMessage(str):
     r"""str subclass that returns itself in repr"""

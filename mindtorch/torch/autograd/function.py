@@ -125,6 +125,7 @@ class Function(nn.Cell):
         raise NotImplementedError
 
     def construct(self, *args, **kwargs):
+        self.needs_input_grad = [input_.requires_grad if hasattr(input_, 'requires_grad') else False for input_ in args]
         args = (self,) + args
         return self.forward(*args, **kwargs)
 

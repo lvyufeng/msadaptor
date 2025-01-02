@@ -62,3 +62,6 @@ class profile:
 
     def step(self):
         self.profiler.step()
+
+def analyse(profiler_path: str, max_process_number:int):
+    Profiler.analyse(profiler_path)

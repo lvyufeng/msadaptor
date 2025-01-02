@@ -39,7 +39,6 @@ if platform.system().lower() == 'linux':
         context.set_context(ascend_config={"precision_mode": "allow_mix_precision"})
 
 from torch import _tensor
-from mindspore import jit
 from mindspore.common.dtype import *
 from mindspore.common.dtype import tensor_type as dtype
 from mindspore import Tensor, default_generator, Generator
@@ -58,7 +57,8 @@ from ._C.size import Size
 
 from .ops import *
 from torch.amp import autocast, GradScaler
-from torch import amp as amp, random as random, serialization as serialization, utils as utils
+from torch import amp as amp, random as random, serialization as serialization, utils as utils, \
+    jit as jit
 from torch.random import get_rng_state, initial_seed, manual_seed, seed, set_rng_state
 from torch.serialization import load, save
 from . import optim, ops, nn, distributions, cuda, distributed#, multiprocessing

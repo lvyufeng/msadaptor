@@ -1,6 +1,7 @@
 from . import npu
 from . import profiler
 from torch.nn.functional import rms_norm, fast_gelu, swiglu
+import mindspore as ms
 from mindspore import ops
 from mindspore.ops import auto_generate as gen
 
@@ -33,3 +34,47 @@ def npu_apply_adam_w(beta1_power, beta2_power, lr, weight_decay, beta1, beta2,
                           beta1=beta1, beta2=beta2, epsilon=epsilon, grad=grad, max_grad_norm=max_grad_norm,
                           amsgrad=amsgrad, maximize=maximize)
     return var, m, v
+
+
+def npu_all_gather_base_mm(
+        input_: ms.Tensor,
+        x2: ms.Tensor,
+        _: str,
+        world_size: int,
+        bias: None = None,
+        gather_index: int = 0,
+        gather_output: bool = True,
+        comm_turn: int = 0,
+    ) -> None:
+    group = ms.communication.GlobalComm.WORLD_COMM_GROUP
+    return ms.ops.all_gather_matmul(
+        input_,
+        x2,
+        group,
+        world_size,
+        bias=bias,
+        gather_index=gather_index,
+        gather_output=gather_output,
+        comm_turn=comm_turn,
+    )
+
+
+def npu_mm_reduce_scatter_base(
+        input_: ms.Tensor,
+        x2: ms.Tensor,
+        _: str,
+        world_size: int,
+        reduce_op: str = ops.ReduceOp.SUM,
+        bias: None = None,
+        comm_turn: int = 0,
+    ) -> None:
+    group = ms.communication.GlobalComm.WORLD_COMM_GROUP
+    return ms.ops.matmul_reduce_scatter(
+        input_,
+        x2,
+        group,
+        world_size,
+        reduce_op=reduce_op,
+        bias=bias,
+        comm_turn=comm_turn,
+    )

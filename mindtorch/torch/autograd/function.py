@@ -109,6 +109,7 @@ class Function(nn.Cell):
     def __init__(self, auto_prefix=True, flags=None):
         super().__init__(auto_prefix, flags)
         self.saved_tensors = []
+        self.used_bprop_inputs = []
 
     def save_for_backward(self, *args):
         if isinstance(args, tuple):

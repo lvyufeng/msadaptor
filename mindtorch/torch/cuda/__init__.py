@@ -1,3 +1,5 @@
+import threading
+
 from mindspore import Tensor
 from mindspore import get_rng_state, set_rng_state, manual_seed
 from mindspore.hal import *
@@ -18,3 +20,5 @@ def is_available():
 def set_device(device):
     pass
 
+def _lazy_call(callable, **kwargs):
+    callable()

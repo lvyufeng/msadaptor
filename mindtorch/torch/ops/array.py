@@ -255,7 +255,8 @@ def take(input, index):
 
 
 # tensor_split
-
+def tensor_split(input, indices_or_sections, dim=0):
+    return ops.tensor_split(input, indices_or_sections, dim)
 
 # tile
 has_tile = hasattr(mindspore.mint, 'tile')

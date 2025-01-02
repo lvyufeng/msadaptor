@@ -106,4 +106,11 @@ def use_deterministic_algorithms(flag: bool):
 def is_grad_enabled():
     return _pynative_executor.enable_grad()
 
+def compile(fn=None, *args, **kwargs):
+    def wrap_func(fn):
+        return fn
+    if fn is not None:
+        return wrap_func(fn)
+    return wrap_func
+
 __version__ = "2.5"

@@ -171,3 +171,4 @@ cython_debug/
 .pypirc
 
 aclinit.json
+fusion_result.json

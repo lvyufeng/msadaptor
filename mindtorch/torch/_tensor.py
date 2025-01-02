@@ -198,3 +198,11 @@ def __pow__(self, exponent):
 
 Tensor.__pow__ = __pow__
 StubTensor.__pow__ = __pow__
+
+def _float(self):
+    if self.dtype == mindspore.float32:
+        return self
+    return self.to(mindspore.float32)
+
+Tensor.float = _float
+StubTensor.float = _float

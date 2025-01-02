@@ -1184,3 +1184,6 @@ def make_causal_mask(
         idxs,
         dtype=dtype,
     )
+
+def rotary_position_embedding(x, cos, sin, mode=0):
+    return ops.rotary_position_embedding(x, cos, sin, mode)

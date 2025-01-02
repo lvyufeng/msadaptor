@@ -2,11 +2,12 @@
 from collections.abc import Generator
 
 import mindspore
-from mindspore import nn
 from mindspore.ops.composite import GradOperation
 from mindspore.ops import stop_gradient
 from mindspore.common.api import _pynative_executor
 from ..configs import GENERATOR_SEED
+from mindspore._c_expression import Cell_
+from .grad_mode import no_grad
 
 grad_ = GradOperation(False, True, False)
 grad_sens_ = GradOperation(False, True, True)
@@ -105,9 +106,9 @@ def vjp(fn, *inputs, weights=None, has_aux=False):
     return res, wrap_container
 
 
-class Function(nn.Cell):
-    def __init__(self, auto_prefix=True, flags=None):
-        super().__init__(auto_prefix, flags)
+class Function(Cell_):
+    def __init__(self):
+        super().__init__(str(self.__class__)[8:-2])
         self.saved_tensors = []
         self.used_bprop_inputs = []
 
@@ -134,6 +135,12 @@ class Function(nn.Cell):
         args = (args[-1],)
         args = (self,) + args
         return self.backward(*args, **kwargs)
+
+    def __call__(self, *args, **kwargs):
+        with no_grad():
+            output = self.construct(*args, **kwargs)
+        _pynative_executor.call_custom_bprop(self, output, *args, **kwargs)
+        return output
 
     @classmethod
     def apply(cls, *args, **kwargs):

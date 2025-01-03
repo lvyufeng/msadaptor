@@ -1,4 +1,3 @@
-import copy
 import mindspore
 from mindspore import Tensor, ops
 from mindspore.common._stub_tensor import StubTensor
@@ -110,7 +109,7 @@ Tensor.dim = dim
 StubTensor.dim = dim
 
 def clone(self):
-    return copy.deepcopy(self)
+    return self.copy()
 
 Tensor.clone = clone
 StubTensor.clone = clone

@@ -19,9 +19,11 @@ from packaging import version
 import mindspore
 from mindspore import context
 from mindspore._c_expression import MSContext # pylint: disable=no-name-in-module, import-error
-# mindspore.set_context(pynative_synchronize=True)
 
 __version__ = "2.1.0"
+
+os.environ['RANK'] = os.getenv('RANK_ID', '0')
+os.environ['WORLD_SIZE'] = os.getenv('MS_WORKER_NUM', '1')
 
 if 'RANK_TABLE_FILE' in os.environ:
     del os.environ['RANK_TABLE_FILE']

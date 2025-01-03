@@ -608,6 +608,12 @@ class Module:
             assert isinstance(param, Parameter)
             param.data = param_applied
 
+            # branch 'g_should_use_set_data'
+            param_grad = param.grad
+            if param_grad is not None:
+                grad_applied = fn(param_grad)
+                param.grad.data = grad_applied
+
         for key, buf in self._buffers.items():
             if buf is not None:
                 self._buffers[key] = fn(buf)

@@ -117,19 +117,25 @@ class Tensor:
         return self.tensor.dtype
 
     def cpu(self):
+        if self.device == device_('cpu'):
+            return self
         data = self._data.move_to('CPU', blocking=True)
         return Tensor(data, device=device_('cpu'))
 
     def npu(self, device=None, non_blocking=False):
-        data = self._data.move_to('Ascend', not non_blocking)
         if device is None:
             device = device_('npu', 0)
+        if self.device == device:
+            return self
+        data = self._data.move_to('Ascend', not non_blocking)
         return Tensor(data, device=device)
 
     def cuda(self, device=None, non_blocking=False):
-        data = self._data.move_to('GPU', not non_blocking)
         if device is None:
             device = device_('gpu', 0)
+        if self.device == device:
+            return self
+        data = self._data.move_to('GPU', not non_blocking)
         return Tensor(data, device=device)
 
     def requires_grad_(self, requires_grad=True):
@@ -147,7 +153,7 @@ class Tensor:
         self.copy_(data)
 
     def __repr__(self) -> str:
-        return self._data.__repr__()
+        return self.cpu()._data.__repr__()
 
     def __format__(self, format_spec):
         return np.ndarray.__format__(self.numpy(), format_spec)
@@ -1800,8 +1806,11 @@ class Tensor:
     def detach(self):
         return torch.ops.detach(self)
 
-def tensor(data, *, dtype=None):
-    return Tensor(data, dtype)
+def tensor(data, *, dtype=None, device=None, requires_grad=False):
+    data = MSTensor(data, dtype=dtype)
+    tensor = Tensor(data, device=device)
+    tensor.requires_grad_(requires_grad)
+    return tensor
 
 def is_tensor(x):
     return isinstance(x, Tensor)
@@ -1838,6 +1847,7 @@ dtype_class_map = {
     mindspore.float32: FloatTensor,
     mindspore.float16: HalfTensor,
     mindspore.bfloat16: BFloat16Tensor,
+    mindspore.float64: DoubleTensor,
     mindspore.int32: IntTensor,
     mindspore.int64: LongTensor,
     mindspore.bool_: BoolTensor

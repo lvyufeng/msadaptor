@@ -73,9 +73,6 @@ bool = bool_
 cfloat = complex64
 cdouble = complex128
 
-def tensor(data, *, dtype=None, device=None, requires_grad=False, pin_memory=False):
-    return Tensor(data, dtype)
-
 strided = None
 contiguous_format = None
 preserve_format = None

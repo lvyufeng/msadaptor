@@ -175,6 +175,7 @@ StubTensor.repeat_interleave = repeat_interleave
 
 def mul_(self, other):
     self.assign_value(self.mul(other))
+    return self
 
 Tensor.mul_ = mul_
 StubTensor.mul_ = mul_

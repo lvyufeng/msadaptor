@@ -20,8 +20,6 @@ import mindspore
 from mindspore import context
 from mindspore._c_expression import MSContext # pylint: disable=no-name-in-module, import-error
 
-__version__ = "2.1.0"
-
 os.environ['RANK'] = os.getenv('RANK_ID', '0')
 os.environ['WORLD_SIZE'] = os.getenv('MS_WORKER_NUM', '1')
 
@@ -40,10 +38,10 @@ if platform.system().lower() == 'linux':
     if SOC in ('ascend910', 'ascend310b'):
         context.set_context(ascend_config={"precision_mode": "allow_mix_precision"})
 
-from torch import _tensor
+from ._tensor import Tensor, tensor, is_tensor
 from mindspore.common.dtype import *
 from mindspore.common.dtype import tensor_type as dtype
-from mindspore import Tensor, default_generator, Generator
+from mindspore import default_generator, Generator
 from mindspore.hal import Stream
 from mindspore import multiprocessing
 from mindspore.common.api import _pynative_executor
@@ -51,12 +49,8 @@ from mindspore.common.api import _pynative_executor
 inf = float("inf")
 nan = float("nan")
 
-class device:
-    def __init__(self, name):
-        pass
-
 from ._C.size import Size
-
+from .types import device
 from .ops import *
 from torch.amp import autocast, GradScaler
 from torch import amp as amp, random as random, serialization as serialization, utils as utils, \

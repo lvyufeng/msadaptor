@@ -178,6 +178,9 @@ def mul_(self, other):
 
 Tensor.mul_ = mul_
 StubTensor.mul_ = mul_
+Tensor.__mul__ = mul_
+StubTensor.__mul__ = mul_
+
 
 Tensor.is_sparse = False
 StubTensor.is_sparse = False

@@ -1,19 +1,31 @@
 import uuid
 from copy import deepcopy
+import numpy as np
+
 import mindspore
 from mindspore._c_expression import Tensor as MSTensor, ParamInfo
 from mindspore._c_expression import TensorNode
-from mindspore.common._register_for_tensor import tensor_operator_registry
-import numpy as np
+from mindspore.ops import GradOperation
+from mindspore.common.api import _pynative_executor
 
 import torch
+from torch.dispatcher import dispatcher
 from .types import device as device_
 
+device_map = {
+    'cpu': 'CPU',
+    'npu': 'Ascend',
+    'cuda': 'GPU'
+}
+
+grad_ = GradOperation(False, True, True)
+ 
 class Tensor:
     tensor = None
     stub = None
     _requires_grad = False
     grad = None
+    fn = None
 
     def __init__(self, *input, device=None, dtype=None): # pylint: disable=super-init-not-called
         if device is None:
@@ -76,9 +88,17 @@ class Tensor:
 
     @data.setter
     def data(self, other):
+        self.stub = None
+        self.tensor = None
         if isinstance(other, Tensor):
             self.stub = other.stub
             self.tensor = other.tensor
+        elif isinstance(other, TensorNode):
+            self.stub = other
+        elif isinstance(other, MSTensor):
+            self.tensor = other
+        else:
+            raise ValueError(f'not support set type {type(other)} to Tensor.data')
 
     @property
     def requires_grad(self):
@@ -94,7 +114,10 @@ class Tensor:
             self.tensor.param_info.requires_grad = requires_grad
             if requires_grad and not hasattr('self', 'hook'):
                 def hook(grad):
-                    self.grad = grad
+                    if self.grad is None:
+                        self.grad = Tensor(grad)
+                    else:
+                        self.grad += Tensor(grad)
                     return grad
                 self.hook = self.register_hook(hook)
 
@@ -117,26 +140,17 @@ class Tensor:
         return self.tensor.dtype
 
     def cpu(self):
-        if self.device == device_('cpu'):
-            return self
-        data = self._data.move_to('CPU', blocking=True)
-        return Tensor(data, device=device_('cpu'))
+        return self.to(device_('cpu'))
 
     def npu(self, device=None, non_blocking=False):
         if device is None:
             device = device_('npu', 0)
-        if self.device == device:
-            return self
-        data = self._data.move_to('Ascend', not non_blocking)
-        return Tensor(data, device=device)
+        return self.to(device, non_blocking=non_blocking)
 
     def cuda(self, device=None, non_blocking=False):
         if device is None:
             device = device_('gpu', 0)
-        if self.device == device:
-            return self
-        data = self._data.move_to('GPU', not non_blocking)
-        return Tensor(data, device=device)
+        return self.to(device, non_blocking=non_blocking)
 
     def requires_grad_(self, requires_grad=True):
         self.requires_grad = requires_grad
@@ -149,11 +163,10 @@ class Tensor:
             return 1
         return self.shape[0]
 
-    def set_data(self, data):
-        self.copy_(data)
-
     def __repr__(self) -> str:
-        return self.cpu()._data.__repr__()
+        data = self.cpu()._data
+        data.data_sync(True)
+        return data.__repr__()
 
     def __format__(self, format_spec):
         return np.ndarray.__format__(self.numpy(), format_spec)
@@ -169,38 +182,69 @@ class Tensor:
     def __add__(self, other):
         return torch.ops.add(self, other)
 
+    def __iadd__(self, other):
+        self.data = torch.ops.add(self, other)
+        return self
+
     def __radd__(self, other):
-        return torch.ops.add(other, self)
+        return Tensor.__add__(other, self)
 
     def __truediv__ (self, other):
-        return torch.ops.div(self, other)
+        data, _ = dispatcher.dispatch('div', self, other)
+        self.data = data
+        return self
 
     def __rtruediv__ (self, other):
-        return torch.ops.div(other, self)
+        return Tensor.__truediv__(other, self)
 
     def __ne__(self, other):
-        return torch.ops.ne(self, other)
+        data, _ = dispatcher.dispatch('not_equal', self, other)
+        self.data = data
+        return self
 
     def __neg__(self):
-        return torch.ops.neg(self)
+        data, _ = dispatcher.dispatch('neg', self)
+        self.data = data
+        return self
 
     def __mul__(self, other):
-        return torch.ops.mul(self, other)
+        data, _ = dispatcher.dispatch('mul', self, other)
+        self.data = data
+        return self
 
     def __rmul__(self, other):
-        return torch.ops.mul(other, self)
+        return Tensor.__mul__(other, self)
 
     def __pow__(self, other):
-        return torch.ops.pow(self, other)
+        data, _ = dispatcher.dispatch('pow', self, other)
+        self.data = data
+        return self
 
     def __sub__(self, other):
-        return torch.ops.sub(self, other)
+        data, _ = dispatcher.dispatch('sub', self, other)
+        self.data = data
+        return self
 
     def __rsub__(self, other):
-        return torch.ops.sub(other, self)
+        return Tensor.__sub__(other, self)
 
     def __eq__(self, other):
-        return torch.ops.eq(self, other)
+        data, _ = dispatcher.dispatch('equal', self, other)
+        self.data = data
+        return self
+
+    def backward(self, gradient=None, retain_graph=None, create_graph=False, inputs=None):
+        assert self.requires_grad, "called backward on non-requires-grad tensor"
+        if gradient is None:
+            if self.shape == ():
+                gradient = tensor(1, dtype=self.dtype, device=self.device)
+            else:
+                raise RuntimeError("grad must specified for non-0-tensor")
+        _pynative_executor.end_graph(self.fn, self.data)
+        from torch.executor import weights_dict
+        weights = weights_dict.pop(self.fn)
+        _pynative_executor.check_run(grad_, self.fn, weights, None, gradient)
+        _pynative_executor.grad(self.fn, grad_, weights, None, gradient)
 
     # Tensor.new_tensor
     def new_tensor(self, data, *, dtype=None):
@@ -1641,10 +1685,29 @@ class Tensor:
 
 
     # Tensor.to
-    def to(self, dtype):
-        if dtype is None:
+
+    def _move_to(self, device, non_blocking=False):
+        if self.device == device:
             return self
-        return torch.ops.cast(self, dtype)
+        else:
+            device_str = device_map[device.type]
+            data = self._data.move_to(device_str, blocking=not non_blocking)
+            out = Tensor(data, device=device)
+            return out
+
+    def to(self, *args, **kwargs):
+        non_blocking = kwargs.get('non_blocking', False)
+        copy = kwargs.get('copy', False)
+        out = self
+        for arg in args:
+            if isinstance(arg, device_):
+                out = Tensor._move_to(out, arg, non_blocking)
+            elif isinstance(arg, mindspore.common.dtype.Type):
+                out = torch.ops.cast(out, arg)
+            elif isinstance(arg, Tensor):
+                out = Tensor._move_to(out, arg.device, non_blocking)
+                out = torch.ops.cast(out, arg.dtype)
+        return out
 
     # Tensor.take
 
@@ -1808,7 +1871,7 @@ class Tensor:
 
 def tensor(data, *, dtype=None, device=None, requires_grad=False):
     data = MSTensor(data, dtype=dtype)
-    tensor = Tensor(data, device=device)
+    tensor = Tensor(data).to(device)
     tensor.requires_grad_(requires_grad)
     return tensor
 

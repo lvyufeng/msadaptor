@@ -6,6 +6,7 @@ from mindspore import ops
 from mindspore.ops._primitive_cache import _get_cache_prim
 from mindspore.ops.operations._grad_ops import StridedSliceGrad
 
+from torch.dispatcher import dispatcher
 from ..configs import use_pyboost, ON_ORANGE_PI
 from .other import broadcast_tensors
 

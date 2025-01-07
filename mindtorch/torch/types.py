@@ -10,7 +10,7 @@ class device():
                     _id = int(_id)
                 else:
                     _target = type
-                    _id = index
+                    _id = None if _target == 'cpu' else 0
             elif isinstance(type, device):
                 if index is not None:
                     raise ValueError("torch.device(): When input is torch.device, `index` can not be set.")

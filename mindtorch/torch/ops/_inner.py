@@ -1,10 +1,9 @@
 """inner ops"""
-import mindspore
-from mindspore import ops
 from ..configs import use_pyboost
+from torch.executor import execute
 
 def cast(input, dtype):
-    return ops.cast(input, dtype)
+    return execute('cast', input, dtype)
 
 def assign(input, other):
     return ops.assign(input, other)

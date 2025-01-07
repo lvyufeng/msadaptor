@@ -2,6 +2,7 @@
 import mindspore
 from mindspore import ops
 from ..configs import use_pyboost
+from torch.executor import execute
 
 # abs
 has_abs = hasattr(mindspore.mint, 'abs')
@@ -38,13 +39,8 @@ def arccosh(input):
     return acosh(input)
 
 # add
-has_add = hasattr(mindspore.mint, 'add')
 def add(input, other, *, alpha=1):
-    if use_pyboost() and has_add:
-        return mindspore.mint.add(input, other, alpha=alpha)
-    if alpha != 1:
-        other = mul(alpha, other)
-    return ops.add(input, other)
+    return execute('add_ext', input, other, alpha)
 
 # addcdiv
 def addcdiv(input, tensor1, tensor2, *, value=1):

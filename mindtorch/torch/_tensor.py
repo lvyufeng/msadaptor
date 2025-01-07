@@ -209,3 +209,10 @@ def _float(self):
 
 Tensor.float = _float
 StubTensor.float = _float
+
+def __imul__(self, other):
+    self.copy_(self.mul(other))
+    return self
+
+Tensor.__imul__ = __imul__
+StubTensor.__imul__ = __imul__

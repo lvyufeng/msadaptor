@@ -1,6 +1,6 @@
 from mindspore.ops.auto_generate import gen_ops_prim
 from mindspore.ops.auto_generate.gen_ops_prim import *
-from mindspore._c_expression import pyboost_cast
+from mindspore._c_expression import pyboost_cast, pyboost_empty
 from mindspore.ops.operations.manually_defined.ops_def import Cast
 
 pyboost_list = list(filter(lambda s: s.startswith("pyboost"), dir(gen_ops_prim)))
@@ -41,5 +41,8 @@ for op_name in aclop_list:
 cast_op = Cast().set_device('CPU')
 def cast_cpu(*args):
     return pyboost_cast(cast_op, args)
+
+def empty_cpu(size, dtype, device):
+    return pyboost_empty([size, dtype, device])
 
 __all__.append('cast_cpu')

@@ -28,7 +28,7 @@ def create_function(func_name):
     exec(f"def {func_name}(): pass", globals())
     return globals()[func_name]
 
-def execute(func_name, *args):
+def execute(func_name, *args, **kwargs):
     global fn_count
     global weights_dict
     funcs = {arg.fn for arg in args if isinstance(arg, Tensor)}
@@ -41,10 +41,10 @@ def execute(func_name, *args):
         _pynative_executor.new_graph(func)
         fn_count += 1
         weights_dict[func] = []
-    
-    params = [arg for arg in args if hasattr(arg, 'tensor') and arg.tensor.param_info is not None]
+
+    params = [arg for arg in args if isinstance(arg, Tensor) and arg.tensor is not None and arg.tensor.param_info is not None]
     weights_dict[func].extend(params)
-    out, device = dispatcher.dispatch(func_name, *args)
+    out, device = dispatcher.dispatch(func_name, *args, **kwargs)
     out_tensor = _convert_stub(out, device=device)
     out_tensor.requires_grad_(requires_grad)
     out_tensor.fn = func

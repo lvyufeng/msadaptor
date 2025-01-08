@@ -1,4 +1,5 @@
 import uuid
+import weakref
 from copy import deepcopy
 import numpy as np
 
@@ -9,17 +10,11 @@ from mindspore.ops import GradOperation
 from mindspore.common.api import _pynative_executor
 
 import torch
-from torch.dispatcher import dispatcher
+from torch.dispatcher import dispatcher, device_map
 from .types import device as device_
 
-device_map = {
-    'cpu': 'CPU',
-    'npu': 'Ascend',
-    'cuda': 'GPU'
-}
-
 grad_ = GradOperation(False, True, True)
- 
+
 class Tensor:
     tensor = None
     stub = None
@@ -107,19 +102,23 @@ class Tensor:
     @requires_grad.setter
     def requires_grad(self, requires_grad):
         self._requires_grad = requires_grad
-        if self.tensor is not None:
+        if self.tensor is not None and requires_grad:
             if self.tensor.param_info is None:
                 self.tensor.param_info = ParamInfo()
                 self.tensor.param_info.name = str(uuid.uuid4())
             self.tensor.param_info.requires_grad = requires_grad
             if requires_grad and not hasattr('self', 'hook'):
-                def hook(grad):
-                    if self.grad is None:
-                        self.grad = Tensor(grad)
-                    else:
-                        self.grad += Tensor(grad)
-                    return grad
-                self.hook = self.register_hook(hook)
+                self.retain_grad()
+
+    def retain_grad(self):
+        self_ref = weakref.ref(self)
+        def hook(grad):
+            if self_ref().grad is None:
+                self_ref().grad = Tensor(grad)
+            else:
+                self_ref().grad += Tensor(grad)
+            return grad
+        self.hook = self.register_hook(hook)
 
     @property
     def shape(self):

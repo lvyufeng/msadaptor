@@ -2,6 +2,7 @@ from mindspore.ops.auto_generate import gen_ops_prim
 from mindspore.ops.auto_generate.gen_ops_prim import *
 from mindspore._c_expression import pyboost_cast
 from mindspore.ops.operations.manually_defined.ops_def import Cast
+from mindspore.common.api import _pynative_executor
 
 pyboost_list = list(filter(lambda s: s.startswith("pyboost"), dir(gen_ops_prim)))
 

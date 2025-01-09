@@ -109,3 +109,16 @@ def unique_consecutive_npu(*args):
     return pyboost_unique_consecutive(unique_consecutive_op, args)
 
 __all__.append('unique_consecutive_npu')
+
+nan_to_num_op = NanToNum().set_device('Ascend')
+def nan_to_num_npu(*args):
+    return pyboost_nan_to_num(nan_to_num_op, args)
+
+__all__.append('nan_to_num_npu')
+
+
+softmax_op = Softmax().set_device('Ascend')
+def softmax_npu(*args):
+    return pyboost_softmax(softmax_op, args)
+
+__all__.append('softmax_npu')

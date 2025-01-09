@@ -1,4 +1,5 @@
 """other op"""
+
 import copy
 import numpy as np
 import mindspore
@@ -17,11 +18,11 @@ from .comparison import eq
 
 
 # bincount
-has_bincount = hasattr(mindspore.mint, 'bincount')
 def bincount(input, weights=None, minlength=0):
     if use_pyboost() and has_bincount:
         return mindspore.mint.bincount(input, weights, minlength)
     return ops.bincount(input, weights, minlength)
+
 
 # block_diag
 
@@ -34,8 +35,11 @@ def broadcast_tensors(*tensors):
 
     return broadcasted_tensors
 
+
 def manual_expand(tensor, shape):
-    assert len(shape) >= tensor.dim(), "Target shape must have equal or more dimensions than the tensor."
+    assert (
+        len(shape) >= tensor.dim()
+    ), "Target shape must have equal or more dimensions than the tensor."
 
     for _ in range(len(shape) - tensor.dim()):
         tensor = tensor.unsqueeze(0)
@@ -49,8 +53,11 @@ def manual_expand(tensor, shape):
 
     return tensor.tile(tuple(repeats))
 
+
 # broadcast_to
-has_broadcast_to = hasattr(mindspore.mint, 'broadcast_to')
+has_broadcast_to = hasattr(mindspore.mint, "broadcast_to")
+
+
 def broadcast_to(input, shape):
     if ON_ORANGE_PI and not use_pyboost():
         # return input.expand(mindspore.tensor(shape))
@@ -58,6 +65,7 @@ def broadcast_to(input, shape):
     if use_pyboost() and has_broadcast_to:
         return mindspore.mint.broadcast_to(input, shape)
     return ops.broadcast_to(input, shape)
+
 
 # broadcast_shapes
 def broadcast_shapes(*shapes):
@@ -88,18 +96,24 @@ def broadcast_shapes(*shapes):
 
 
 # cdist
-has_cdist = hasattr(mindspore.mint, 'cdist')
-def cdist(x1, x2, p=2.0, compute_mode='use_mm_for_euclid_dist_if_necessary'):
+has_cdist = hasattr(mindspore.mint, "cdist")
+
+
+def cdist(x1, x2, p=2.0, compute_mode="use_mm_for_euclid_dist_if_necessary"):
     if use_pyboost() and has_cdist:
         return mindspore.mint.cdist(x1, x2, p, compute_mode)
     return ops.cdist(x1, x2, float(p))
 
+
 # clone
-has_clone = hasattr(mindspore.mint, 'clone')
+has_clone = hasattr(mindspore.mint, "clone")
+
+
 def clone(input):
     if use_pyboost() and has_clone:
         return mindspore.mint.clone(input)
     return copy.deepcopy(input)
+
 
 # combinations
 
@@ -119,17 +133,23 @@ def clone(input):
 # cumprod
 
 # cumsum
-has_cumsum = hasattr(mindspore.mint, 'cumsum')
+has_cumsum = hasattr(mindspore.mint, "cumsum")
+
+
 def cumsum(input, dim, dtype=None):
-    if use_pyboost() and has_cumsum and not ON_ORANGE_PI: # since cann8.0 community remove aclnn cumsum
+    if (
+        use_pyboost() and has_cumsum and not ON_ORANGE_PI
+    ):  # since cann8.0 community remove aclnn cumsum
         return mindspore.mint.cumsum(input, dim, dtype)
     if input.dtype == mindspore.bool_:
         input = input.to(mindspore.int32)
     return ops.cumsum(input, dim, dtype)
 
+
 # diag
 def diag(input):
     return ops.diag(input)
+
 
 # diag_embed
 
@@ -145,7 +165,6 @@ def diag(input):
 # einsum
 
 
-
 def einsum_label_to_index(label):
     """
     Args:
@@ -158,10 +177,14 @@ def einsum_label_to_index(label):
     Raises:
         None.
     """
-    if label == '.':
+    if label == ".":
         return 52
-    NUM_OF_LETTERS = ord('z') - ord('a') + 1
-    return (ord(label) - ord('A')) if (label.isupper()) else (NUM_OF_LETTERS + (ord(label) - ord('a')))
+    NUM_OF_LETTERS = ord("z") - ord("a") + 1
+    return (
+        (ord(label) - ord("A"))
+        if (label.isupper())
+        else (NUM_OF_LETTERS + (ord(label) - ord("a")))
+    )
 
 
 def maybe_wrap_dim(dim: int, dim_post_expr: int, wrap_scalar: bool = True):
@@ -208,7 +231,7 @@ def dim_list_to_bitset(opt_dims, ndims):
         None
     """
     if opt_dims:
-        seen = [False] * (max(opt_dims)+1)
+        seen = [False] * (max(opt_dims) + 1)
         for dim in opt_dims:
             dim = maybe_wrap_dim(dim, ndims)
             seen[dim] = True
@@ -251,14 +274,18 @@ def sumproduct_pair(left_, right_, sum_dims_, keep_dim_):
         sr = right.shape[i] > 1
         if sum_dims[i]:
             if sl and sr:
-                assert left.shape[i] == right.shape[i], "non-broadcast dimensions must match"
+                assert (
+                    left.shape[i] == right.shape[i]
+                ), "non-broadcast dimensions must match"
                 sum_size *= left.shape[i]
             elif sl:
                 left = ops.sum(left, i, keepdim=True)
             elif sr:
                 right = ops.sum(right, i, keepdim=True)
         elif sl and sr:
-            assert left.shape[i] == right.shape[i], "non-broadcast dimensions must match"
+            assert (
+                left.shape[i] == right.shape[i]
+            ), "non-broadcast dimensions must match"
             lro.append(i)
             lro_size *= left.shape[i]
         elif sl:
@@ -288,7 +315,7 @@ def sumproduct_pair(left_, right_, sum_dims_, keep_dim_):
     rpermutation += ro
     rpermutation += lo
 
-    opermutation = [-1]*(len(lro)+len(lo)+len(sum_dims_)+len(ro))
+    opermutation = [-1] * (len(lro) + len(lo) + len(sum_dims_) + len(ro))
     i = 0
     for it in lro:
         opermutation[it] = i
@@ -303,26 +330,27 @@ def sumproduct_pair(left_, right_, sum_dims_, keep_dim_):
         opermutation[it] = i
         i += 1
 
-    left = ops.transpose(left, tuple(lpermutation)).reshape(
-        lro_size, lo_size, sum_size)
-    right = ops.transpose(right, tuple(rpermutation)).view(
-        lro_size, sum_size, ro_size)
+    left = ops.transpose(left, tuple(lpermutation)).reshape(lro_size, lo_size, sum_size)
+    right = ops.transpose(right, tuple(rpermutation)).view(lro_size, sum_size, ro_size)
 
     result = ops.bmm(left, right)
     result = result.view(*out_size).transpose(*opermutation)
 
     if not keep_dim_:
         sizes = list(result.shape)
-        for i in range(dim-1, 0, -1):
+        for i in range(dim - 1, 0, -1):
             if sum_dims[i]:
                 sizes.pop(i)
         result = result.view(*sizes)
 
     return result
 
+
 ELLIPSIS = 52
 
-has_einsum = hasattr(mindspore.mint, 'einsum')
+has_einsum = hasattr(mindspore.mint, "einsum")
+
+
 def einsum(equation, *operands):
     """
     Args:
@@ -351,32 +379,42 @@ def einsum(equation, *operands):
     arrow_pos = equation.find("->")
     num_ops = len(operands)
     op_labels = [[] for _ in range(num_ops)]
-    lhs = equation[0: arrow_pos]
+    lhs = equation[0:arrow_pos]
 
     curr_op = 0
     found_ell = False
     ell_skip = 0
     for i, label in enumerate(lhs):
-        if label == ' ':
+        if label == " ":
             continue
-        if label == '.':
+        if label == ".":
             if ell_skip != 0:
                 ell_skip -= 1
                 continue
-            assert not found_ell, f"einsum(): found {curr_op} for operand for which an ellipsis was already found"
-            assert i + 2 < len(lhs) and lhs[i + 1] == '.', f"einsum(): found {curr_op} for operand that is not part of any ellipsis"
+            assert (
+                not found_ell
+            ), f"einsum(): found {curr_op} for operand for which an ellipsis was already found"
+            assert (
+                i + 2 < len(lhs) and lhs[i + 1] == "."
+            ), f"einsum(): found {curr_op} for operand that is not part of any ellipsis"
             ell_skip = 2
             op_labels[curr_op].append(ELLIPSIS)
             found_ell = True
-        elif label == ',':
+        elif label == ",":
             curr_op += 1
-            assert curr_op < num_ops, "einsum(): fewer operands were provided than specified in the equation"
+            assert (
+                curr_op < num_ops
+            ), "einsum(): fewer operands were provided than specified in the equation"
             found_ell = False
         else:
-            assert str.isalpha(label), f"einsum(): invalid subscript given at index {i} in the equation string, subscripts must be in [a-zA-Z]"
+            assert str.isalpha(
+                label
+            ), f"einsum(): invalid subscript given at index {i} in the equation string, subscripts must be in [a-zA-Z]"
             op_labels[curr_op].append(einsum_label_to_index(label))
 
-    assert curr_op == num_ops - 1, "einsum(): more operands were provided than specified in the equation"
+    assert (
+        curr_op == num_ops - 1
+    ), "einsum(): more operands were provided than specified in the equation"
     # Labels must be within [a-zA-Z].
     TOTAL_LABELS = 52
     label_count = [0] * TOTAL_LABELS
@@ -401,12 +439,16 @@ def einsum(equation, *operands):
             else:
                 label_count[label] += 1
         if has_ellipsis:
-            assert nlabels <= ndims, f"einsum(): the number of subscripts in the equation ({nlabels}" \
-                                     f") is more than the number of dimensions ({ndims}) for operand {i}"
+            assert nlabels <= ndims, (
+                f"einsum(): the number of subscripts in the equation ({nlabels}"
+                f") is more than the number of dimensions ({ndims}) for operand {i}"
+            )
         else:
-            assert nlabels == ndims, f"einsum(): the number of subscripts in the equation ({nlabels}" \
-                                     f") does not match the number of dimensions (" \
-                                     f"{ndims}) for operand {i} and no ellipsis was given"
+            assert nlabels == ndims, (
+                f"einsum(): the number of subscripts in the equation ({nlabels}"
+                f") does not match the number of dimensions ("
+                f"{ndims}) for operand {i} and no ellipsis was given"
+            )
 
     # We want to align the dimensions of every input tensor to have
     # shape out_dims + sum_dims. For this, we create a mapping of label
@@ -419,7 +461,7 @@ def einsum(equation, *operands):
     found_ell = False
 
     if arrow_pos == -1:
-    # Implicit output is ellipsis (...) + labels seen only once
+        # Implicit output is ellipsis (...) + labels seen only once
         perm_index = ell_num_dim
         found_ell = True
         for label, _label_count in enumerate(label_count):
@@ -427,24 +469,30 @@ def einsum(equation, *operands):
                 label_perm_index[label] = perm_index
                 perm_index += 1
     else:
-        rhs = equation[arrow_pos + 2:]
+        rhs = equation[arrow_pos + 2 :]
         ell_skip = 0
         for i, label in enumerate(rhs):
-            if label == ' ':
+            if label == " ":
                 continue
-            if label == '.':
+            if label == ".":
                 if ell_skip != 0:
                     ell_skip -= 1
                     continue
-                assert not found_ell, "einsum(): found \'.\' for output but an ellipsis (...) was already found"
-                assert i + 2 < len(rhs) and rhs[i + 1] == '.', "einsum(): found \'.\' for output that is not part of any ellipsis (...)"
+                assert (
+                    not found_ell
+                ), "einsum(): found '.' for output but an ellipsis (...) was already found"
+                assert (
+                    i + 2 < len(rhs) and rhs[i + 1] == "."
+                ), "einsum(): found '.' for output that is not part of any ellipsis (...)"
                 ell_skip = 2
                 ell_index = perm_index
                 perm_index += ell_num_dim
                 found_ell = True
             else:
-                assert str.isalpha(label), f"einsum(): invalid subscript given at index {len(lhs) + 2 + i} " \
-                                           f"in the equation string, subscripts must be in [a-zA-Z]"
+                assert str.isalpha(label), (
+                    f"einsum(): invalid subscript given at index {len(lhs) + 2 + i} "
+                    f"in the equation string, subscripts must be in [a-zA-Z]"
+                )
 
                 index = einsum_label_to_index(label)
                 label_perm_index[index] = perm_index
@@ -476,8 +524,7 @@ def einsum(equation, *operands):
         for label in labels:
             if label == ELLIPSIS:
                 # Add missing dimensions covered by the ellipsis
-                num_missing_dim = ell_num_dim - \
-                    (len(original_sizes) - len(labels) + 1)
+                num_missing_dim = ell_num_dim - (len(original_sizes) - len(labels) + 1)
                 for k in range(num_missing_dim):
                     operand = ops.unsqueeze(operand, j)
                 for k in range(ell_num_dim):
@@ -511,7 +558,9 @@ def einsum(equation, *operands):
         for i in range(1, len(operands)):
             dim_size = permuted_operands[i].shape[dim]
             if broadcast_size != dim_size and broadcast_size != 1 and dim_size != 1:
-                raise RuntimeError("einsum(): operands do not broadcast with remapped shapes [original->remapped]")
+                raise RuntimeError(
+                    "einsum(): operands do not broadcast with remapped shapes [original->remapped]"
+                )
             if dim_size != 1:
                 broadcast_size = dim_size
                 dim_last_op[dim] = i
@@ -560,29 +609,33 @@ def einsum(equation, *operands):
         elif len(sum_dims) == len(result.shape):
             result = result.flatten().dot(operand.flatten())
         else:
-            result = sumproduct_pair(
-                result, operand, sum_dims, False)
+            result = sumproduct_pair(result, operand, sum_dims, False)
     return result
 
 
-
 # flatten
-has_flatten = hasattr(mindspore.mint, 'flatten')
+has_flatten = hasattr(mindspore.mint, "flatten")
+
+
 def flatten(input, start_dim=1, end_dim=-1):
     """Flattens the input. Does not affect the batch size."""
     if use_pyboost() and has_flatten:
         return mindspore.mint.flatten(input, start_dim, end_dim)
     if end_dim < 0:
         end_dim = input.ndim + end_dim
-    new_shape = input.shape[:start_dim] + (-1,) + input.shape[end_dim + 1:]
+    new_shape = input.shape[:start_dim] + (-1,) + input.shape[end_dim + 1 :]
     return ops.reshape(input, new_shape)
 
+
 # flip
-has_flip = hasattr(mindspore.mint, 'flip')
+has_flip = hasattr(mindspore.mint, "flip")
+
+
 def flip(input, dims):
     if use_pyboost() and has_flip:
         return mindspore.mint.flip(input, dims)
     return ops.flip(input, dims)
+
 
 # fliplr
 
@@ -609,7 +662,9 @@ def flip(input, dims):
 
 
 # meshgrid
-has_meshgrid = hasattr(mindspore.mint, 'meshgrid')
+has_meshgrid = hasattr(mindspore.mint, "meshgrid")
+
+
 def meshgrid(*tensors, indexing=None):
     if use_pyboost() and has_meshgrid:
         return mindspore.mint.meshgrid(*tensors, indexing)
@@ -618,8 +673,9 @@ def meshgrid(*tensors, indexing=None):
     if len(tensors) == 1:
         return tensors
     if indexing is None:
-        indexing = 'ij'
+        indexing = "ij"
     return ops.meshgrid(*tensors, indexing=indexing)
+
 
 # lcm
 
@@ -633,7 +689,9 @@ def meshgrid(*tensors, indexing=None):
 
 
 # repeat_interleave
-has_repeat_interleave = hasattr(mindspore.mint, 'repeat_interleave')
+has_repeat_interleave = hasattr(mindspore.mint, "repeat_interleave")
+
+
 def repeat_interleave(input, repeats, dim=None):
     if use_pyboost() and has_repeat_interleave:
         return mindspore.mint.repeat_interleave(input, repeats, dim)
@@ -642,49 +700,73 @@ def repeat_interleave(input, repeats, dim=None):
         return input.repeat(repeats, dim).bool()
     return input.repeat(repeats, dim)
 
+
 # roll
-DEVICE_TARGET = mindspore.get_context('device_target')
-has_roll = hasattr(mindspore.mint, 'roll')
+DEVICE_TARGET = mindspore.get_context("device_target")
+has_roll = hasattr(mindspore.mint, "roll")
+
+
 def roll(input, shifts, dims=None):
     if use_pyboost() and has_roll:
         return mindspore.mint.roll(input, shifts, dims)
-    if DEVICE_TARGET == 'CPU':
+    if DEVICE_TARGET == "CPU":
         return mindspore.numpy.roll(input, shifts, dims)
     return ops.roll(input, shifts, dims)
 
+
 # searchsorted
-has_searchsorted = hasattr(mindspore.mint, 'searchsorted')
-def searchsorted(sorted_sequence, values, *, out_int32=False, right=False, side=None, sorter=None):
+has_searchsorted = hasattr(mindspore.mint, "searchsorted")
+
+
+def searchsorted(
+    sorted_sequence, values, *, out_int32=False, right=False, side=None, sorter=None
+):
     if use_pyboost() and has_searchsorted:
-        return mindspore.mint.searchsorted(sorted_sequence, values, out_int32=out_int32, right=right, side=side, sorter=sorter)
+        return mindspore.mint.searchsorted(
+            sorted_sequence,
+            values,
+            out_int32=out_int32,
+            right=right,
+            side=side,
+            sorter=sorter,
+        )
     return ops.searchsorted(sorted_sequence, values, out_int32=out_int32, right=right)
+
 
 # tensordot
 
 # trace
 
 # tril
-has_tril = hasattr(mindspore.mint, 'tril')
+has_tril = hasattr(mindspore.mint, "tril")
+
+
 def tril(input, diagonal=0):
     if use_pyboost() and has_tril:
         return mindspore.mint.tril(input, diagonal)
     return ops.tril(input, diagonal)
 
+
 # tril_indices
 
 # triu
-has_triu = hasattr(mindspore.mint, 'triu')
+has_triu = hasattr(mindspore.mint, "triu")
+
+
 def triu(input, diagonal=0):
     if use_pyboost() and has_triu:
         return mindspore.mint.triu(input, diagonal)
     return ops.triu(input, diagonal)
 
+
 # triu_indices
+
 
 # unflatten
 def unflatten(x, dim, sizes):
     new_shape = x.shape[:dim] + sizes
     return ops.reshape(x, new_shape)
+
 
 # vander
 
@@ -699,15 +781,19 @@ def unflatten(x, dim, sizes):
 
 # resolve_neg
 
+
 def masked_fill(input, mask, value):
     masked_fill_ = _get_cache_prim(ops.MaskedFill)()
     return masked_fill_(input, mask, mindspore.tensor(value, dtype=input.dtype))
 
+
 def finfo(dtype):
     return np.finfo(mindspore.dtype_to_nptype(dtype))
 
+
 def iinfo(dtype):
     return np.iinfo(mindspore.dtype_to_nptype(dtype))
+
 
 def contains(self, key):
     r"""
@@ -724,6 +810,7 @@ def contains(self, key):
     eq_res = eq(self, key)
     res = any(eq_res)
     return bool(res)
+
 
 def initialize(self, init_method):
     r"""
@@ -750,7 +837,10 @@ def initialize(self, init_method):
     """
     self.assign_value(initializer(init_method, self.shape, self.dtype))
 
+
 _stop_gradient = ops.StopGradient()
+
+
 def stop_gradient(input):
     return _stop_gradient(input)
 
@@ -764,6 +854,7 @@ def _get_unfold_indices(input_shape, dimension, size, step):
 
     return indices, dimension
 
+
 def unfold(input, dimension, size, step):
     _indices, _dimension = _get_unfold_indices(input.shape, dimension, size, step)
     indices = mindspore.Tensor(_indices).astype(mindspore.int32)
@@ -772,4 +863,36 @@ def unfold(input, dimension, size, step):
 
     return output
 
-__all__ = ['bincount', 'broadcast_shapes', 'broadcast_tensors', 'broadcast_to', 'cdist', 'clone', 'contains', 'cumsum', 'diag', 'dim_list_to_bitset', 'einsum', 'einsum_label_to_index', 'finfo', 'flatten', 'flip', 'iinfo', 'initialize', 'manual_expand', 'masked_fill', 'maybe_wrap_dim', 'meshgrid', 'repeat_interleave', 'roll', 'searchsorted', 'stop_gradient', 'sumproduct_pair', 'tril', 'triu', 'unflatten', 'unfold']
+
+__all__ = [
+    "bincount",
+    "broadcast_shapes",
+    "broadcast_tensors",
+    "broadcast_to",
+    "cdist",
+    "clone",
+    "contains",
+    "cumsum",
+    "diag",
+    "dim_list_to_bitset",
+    "einsum",
+    "einsum_label_to_index",
+    "finfo",
+    "flatten",
+    "flip",
+    "iinfo",
+    "initialize",
+    "manual_expand",
+    "masked_fill",
+    "maybe_wrap_dim",
+    "meshgrid",
+    "repeat_interleave",
+    "roll",
+    "searchsorted",
+    "stop_gradient",
+    "sumproduct_pair",
+    "tril",
+    "triu",
+    "unflatten",
+    "unfold",
+]

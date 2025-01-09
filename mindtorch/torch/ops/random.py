@@ -1,132 +1,169 @@
 """random op"""
 import numpy as np
-import mindspore
-from mindspore import ops
-from mindspore.ops._primitive_cache import _get_cache_prim
-from ..configs import use_pyboost, DEVICE_TARGET, GENERATOR_SEED
-from .other import cumsum, searchsorted
-from .comparison import topk
-from .pointwise import div, log
-from .._bind import get_default_dtype
 
+from mindspore.common.generator import default_generator
+from mindspore.ops.auto_generate.gen_arg_handler import dtype_to_type_id
+
+import torch
+from torch.executor import execute
+from .._bind import get_default_dtype, get_default_device
+
+generator_step_ = 12
 # bernoulli
-has_bernoulli = hasattr(mindspore.mint, 'bernoulli')
-def bernoulli(input, *, generator=None):
-    if use_pyboost() and has_bernoulli:
-        return mindspore.mint.bernoulli(input, generator=generator)
-    random_numbers = rand(*input.shape, dtype=mindspore.float32)
-    samples = random_numbers < 0.5
-    samples = samples.int()
-    return samples
+def bernoulli(input, *, generator=None, out=None):
+    if generator is None:
+        generator = default_generator
+    seed, offset = generator._step(generator_step_)  # pylint: disable=protected-access
+    output = execute('bernoulli_ext', input, seed, offset)
+    if out is None:
+        return output
+    out.data = output
+    return out
 
 # multinomial
-has_multinomial = hasattr(mindspore.mint, 'multinomial')
-def multinomial(input, num_samples, replacement=False, *, generator=None):
+def multinomial(input, num_samples, replacement=False, *, generator=None, out=None):
     """custom multinomial"""
-    if use_pyboost() and has_multinomial:
-        return mindspore.mint.multinomial(input, num_samples, replacement=replacement, generator=generator)
-    if replacement:
-        # with replacement
-        cumulative_probs = cumsum(input, dim=-1)
-        uniform_samples = rand(*input.shape[:-1] + (num_samples,))
-        if cumulative_probs.dtype == mindspore.float16:
-            cumulative_probs = cumulative_probs.astype(mindspore.float32)
-        samples = searchsorted(cumulative_probs, uniform_samples, right=True)
-    else:
-        # without replacement
-        n_dist = 1
-        if input.ndim > 1:
-            n_dist = input.shape[-2]
-        random_uniform = rand(*(n_dist * input.shape[-1],))
-        if n_dist != 1:
-            random_uniform = random_uniform.reshape(n_dist, input.shape[-1])
-
-        vals = div(log(random_uniform), input + 1e-10)
-        _, samples = topk(vals, num_samples)
-
-    return samples.astype(mindspore.int64)
+    if generator is None:
+        generator = default_generator
+    seed, offset = generator._step(  # pylint: disable=protected-access
+        generator_step_)
+    output = execute('multinomial_ext', input, num_samples, replacement, seed, offset)
+    if out is None:
+        return output
+    out.data = output
+    return out
 
 # normal
-has_normal = hasattr(mindspore.mint, 'normal')
-def normal(mean=0.0, std=1.0, size=None):
-    if use_pyboost() and has_normal:
-        return mindspore.mint.normal(mean, std, size)
-    return ops.normal(size, mean, std)
+def normal(mean=0.0, std=1.0, *, size=None, generator=None, out=None):
+    if generator is None:
+        generator = default_generator
+    seed, offset = generator._step(  # pylint: disable=protected-access
+        generator_step_)
+
+    is_mean_tensor = isinstance(mean, torch.Tensor)
+    is_std_tensor = isinstance(std, torch.Tensor)
+
+    if is_mean_tensor and is_std_tensor:
+        output = execute('normal_tensor_tensor', mean, std, seed, offset)
+    if is_mean_tensor and not is_std_tensor:
+        output = execute('normal_tensor_float', mean, std, seed, offset)
+    if not is_mean_tensor and is_std_tensor:
+        output = execute('normal_float_tensor', mean, std, seed, offset)
+    output = execute('normal_float_float', mean, std, size, seed, offset)
+    if out is None:
+        return out
+    out.data = output
+    return out
 
 # poisson
 
 
 # rand
-has_rand = hasattr(mindspore.mint, 'rand')
-def rand(*size, dtype=None, device=None):
-    if size[0] == []:
-        size = ()
-    elif isinstance(size[0], (tuple, list)):
-        size = size[0]
+def rand(*size, generator=None, out=None, dtype=None, layout=None, device=None, requires_grad=False, pin_memory=False):
+    if device is None:
+        device = get_default_device()
     if dtype is None:
         dtype = get_default_dtype()
-    if use_pyboost() and has_rand:
-        return mindspore.mint.rand(*size, dtype=dtype)
-    return ops.rand(*size, dtype=dtype)
+    if not generator:
+        generator = default_generator
+    seed, offset = generator._step(  # pylint: disable=protected-access
+        generator_step_)
+    if size and isinstance(size[0], (tuple, list)):
+        size = size[0]
+    output = execute('rand_ext', size, seed, offset, dtype_to_type_id('RandExt', 'dtype', dtype),
+                     device=device, requires_grad=requires_grad, is_leaf=True)
+    if out is None:
+        return output
+    out.data = output
+    return out
+
 
 # rand_like
-has_rand_like = hasattr(mindspore.mint, 'rand_like')
-def rand_like(input, *, dtype=None):
-    if use_pyboost() and has_rand_like:
-        return mindspore.mint.rand_like(input, dtype=dtype)
-    return ops.rand_like(input, dtype=dtype)
-
-# randint
-has_randint = hasattr(mindspore.mint, 'randint')
-def randint(low=0, high=None, size=None, *, dtype=None, generator=None):
-    if use_pyboost() and has_randint:
-        return mindspore.mint.randint(low, high, size, dtype=dtype, generator=generator)
-    return ops.randint(low, high, size, dtype=dtype)
-
-# randint_like
-def ranint_like(input, low, high, *, dtype=None):
+def rand_like(input, *, dtype=None, layout=None, device=None, requires_grad=False, memory_format=torch.preserve_format):
+    if device is None:
+        device = input.device
     if dtype is None:
         dtype = input.dtype
-    return randint(low, high, input.shape, dtype=dtype)
+    seed, offset = default_generator._step(  # pylint: disable=protected-access
+        generator_step_)
+    return execute('rand_like_ext', input, seed, offset, dtype_to_type_id('RandLikeExt', 'dtype', dtype), device=device, requires_grad=requires_grad)
+
+# randint
+def randint(*args, generator=None, out=None, dtype=None, layout=None, device=None, requires_grad=False):
+    if dtype is None:
+        dtype = torch.int64
+    if device is None:
+        device = get_default_device()
+    if not generator:
+        generator = default_generator
+    seed, offset = generator._step(  # pylint: disable=protected-access
+        generator_step_)
+    args = list(args)
+    if len(args) == 2:
+        args = [0] + args
+    args.extend([seed, offset])
+    output = execute('randint_ext', *args, dtype_to_type_id('RandInt', 'dtype', dtype),
+                     device=device, requires_grad=requires_grad, is_leaf=True)
+    if out is None:
+        return output
+    out.data = output
+    return out
+
+# randint_like
+def randint_like(input, low, high=0, *, dtype=None, layout=None, device=None, requires_grad=False, memory_format=None):
+    if high == 0:
+        low, high = 0, low
+    if device is None:
+        device = input.device
+    if dtype is None:
+        dtype = input.dtype
+    seed, offset = default_generator._step(  # pylint: disable=protected-access
+        generator_step_)
+    return execute('randint_like_ext', input, low, high, seed, offset,
+                   dtype_to_type_id('RandIntLike', 'dtype', dtype), device=device, requires_grad=requires_grad)
 
 # randn
-# randn
-has_randn = hasattr(mindspore.mint, 'randn')
-def randn(*size, generator=None, dtype=None):
+def randn(*size, generator=None, out=None, dtype=None, layout=None, device=None, requires_grad=False, pin_memory=False):
+    if device is None:
+        device = get_default_device()
     if dtype is None:
         dtype = get_default_dtype()
-    if use_pyboost() and has_randn:
-        return mindspore.mint.randn(*size, generator=generator, dtype=dtype)
-    return ops.randn(*size, dtype=dtype)
+    if not generator:
+        generator = default_generator
+    seed, offset = generator._step(  # pylint: disable=protected-access
+        generator_step_)
+    if size and isinstance(size[0], (tuple, list)):
+        size = size[0]
+    output = execute('randn', size, seed, offset, dtype_to_type_id('Randn', 'dtype', dtype),
+                     device=device, requires_grad=requires_grad, is_leaf=True)
+    if out is None:
+        return output
+    out.data = output
+    return out
 
 # randn_like
-has_randn_like = hasattr(mindspore.mint, 'randn_like')
-def randn_like(input, *, dtype=None):
-    if use_pyboost() and has_randn_like:
-        return mindspore.mint.randn_like(input, dtype=dtype)
-    return ops.randn_like(input, dtype=dtype)
+def randn_like(input, *, dtype=None, layout=None, device=None, requires_grad=False, memory_format=None):
+    if device is None:
+        device = input.device
+    if dtype is None:
+        dtype = input.dtype
+    seed, offset = default_generator._step(  # pylint: disable=protected-access
+        generator_step_)
+    return execute('rand_like_ext', input, seed, offset, dtype_to_type_id('RandnLike', 'dtype', dtype), device=device, requires_grad=requires_grad)
 
 # randperm
-has_randperm = hasattr(mindspore.mint, 'randperm')
-def randperm(n, *, generator=None, dtype=mindspore.int64):
-    """randperm"""
-    if use_pyboost() and has_randperm:
-        return mindspore.mint.randperm(n, generator=generator, dtype=dtype)
-    if DEVICE_TARGET == 'CPU':
-        seed, offset = 0, 0
-        if GENERATOR_SEED:
-            randperm_v2_op = _get_cache_prim(ops.RandpermV2)(seed, offset, dtype)
-            return randperm_v2_op(n)
-        else:
-            randperm_v2_op = _get_cache_prim(ops.RandpermV2)(dtype)
-            return randperm_v2_op(mindspore.tensor([n]), seed, offset)
+def randperm(n, *, generator=None, out=None, dtype=torch.int64, layout=None, device=None, requires_grad=False, pin_memory=False):
+    if device is None:
+        device = get_default_device()
+    if not generator:
+        generator = default_generator
+    seed, offset = generator._step(  # pylint: disable=protected-access
+        generator_step_)
+    output = execute('randperm_ext', n, seed, offset, dtype_to_type_id('RandpermExt', 'dtype', dtype),
+                     device=device, requires_grad=requires_grad)
+    if out is None:
+        return output
+    out.data = output
+    return out
 
-    randperm_op = _get_cache_prim(ops.Randperm)(max_length=n, dtype=dtype)
-    return randperm_op(mindspore.tensor([n]))
-
-def gamma(shape, alpha, beta):
-    if DEVICE_TARGET != 'Ascend':
-        return mindspore.tensor(np.random.gamma(alpha, 1/beta, shape))
-    return ops.gamma(shape, alpha, beta)
-
-__all__ = ['bernoulli', 'gamma', 'multinomial', 'normal', 'rand', 'rand_like', 'randint', 'randn', 'randn_like', 'randperm', 'ranint_like']
+__all__ = ['bernoulli', 'multinomial', 'normal', 'rand', 'rand_like', 'randint', 'randn', 'randn_like', 'randperm', 'randint_like']

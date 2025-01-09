@@ -1,5 +1,5 @@
 from mindspore import float16, bfloat16
-from .configs import DEFAULT_DTYPE, GENERATOR_SEED
+from .configs import DEFAULT_DTYPE, DEFAULT_DEVICE
 
 AUTO_CAST_DTYE = {
     'cuda': float16,
@@ -22,3 +22,12 @@ def set_default_dtype(dtype):
 def get_default_dtype():
     """get default dtype"""
     return DEFAULT_DTYPE
+
+def set_default_device(device):
+    """set default dtype"""
+    global DEFAULT_DEVICE
+    DEFAULT_DEVICE = device
+
+def get_default_device():
+    """get default dtype"""
+    return DEFAULT_DEVICE

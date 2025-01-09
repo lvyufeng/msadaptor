@@ -1,8 +1,4 @@
 """reduction op"""
-import mindspore
-from mindspore import ops
-from mindspore.ops._primitive_cache import _get_cache_prim
-from ..configs import use_pyboost, DEVICE_TARGET
 from mindspore.ops.auto_generate.gen_arg_handler import dtype_to_type_id
 
 import torch
@@ -55,7 +51,7 @@ def logsumexp(input, dim, keepdim=False):
 # mean
 def mean(input, dim=None, keepdim=False, *, dtype=None):
     return execute('mean_ext', input, dim, keepdim,
-                   dtype if dtype is None dtype_to_type_id('MeanExt', 'dtype', dtype))
+                   dtype if dtype is None else dtype_to_type_id('MeanExt', 'dtype', dtype))
 
 # nanmean
 
@@ -73,10 +69,58 @@ def median(input, dim=-1, keepdim=False):
 
 
 # norm
+def vector_norm_ext(input, p=2, dim=None, keepdim=False, *, dtype=None):
+    if float(p) in [0.0, 1.0, 2.0, 3.0]:
+        return execute('linalg_vector_norm', input, float(p), dim, keepdim,
+                        dtype if dtype is None else dtype_to_type_id('LinalgVectorNorm', 'dtype', dtype))
+    if input.dtype in [torch.bfloat16, torch.float16, torch.float32]:
+        if dtype is None:
+            return execute('lp_norm_v2', input, p, dim, keepdim, 0.0)
+        return execute('lp_norm_v2', input, p, dim, keepdim, 0.0).to(dtype)
+
+    cast_dtype = input.dtype if dtype is None else dtype
+    input = input.to(torch.float32)
+    return execute('lp_norm_v2', input, p, dim, keepdim, 0.0).to(cast_dtype)
+
+def matrix_norm_ext(A, ord='fro', dim=(-2, -1), keepdim=False, *, dtype=None):
+    ndim = A.ndim
+    row_axis, col_axis = _check_matrix_norm_axis(dim, ndim)
+    _check_matrix_norm_ord(ord)
+    if ord == 'fro':
+        return vector_norm_ext(A, 2, dim, keepdim, dtype=dtype)
+    if ord == 'nuc':
+        res = _multi_svd_norm(A, row_axis, col_axis, 'sum')
+        return _reshape_matrix_norm(A, res, dim, keepdim)
+    if ord == 2:
+        res = _multi_svd_norm(A, row_axis, col_axis, 'amax')
+        return _reshape_matrix_norm(A, res, dim, keepdim)
+    if ord == -2:
+        res = _multi_svd_norm(A, row_axis, col_axis, 'amin')
+        return _reshape_matrix_norm(A, res, dim, keepdim)
+    if ord in [float('inf'), -float('inf')]:
+        row_axis, col_axis = col_axis, row_axis
+    if not keepdim and col_axis > row_axis:
+        col_axis -= 1
+    if ord < 0:
+        return amin(vector_norm_ext(A, 1, row_axis, keepdim, dtype=dtype), col_axis, keepdim)
+    return amax(vector_norm_ext(A, 1, row_axis, keepdim, dtype=dtype), col_axis, keepdim)
+
 def norm(input, p='fro', dim=None, keepdim=False, dtype=None):
-    if use_pyboost() and has_norm:
-        return mindspore.mint.norm(input, p, dim, keepdim, dtype=dtype)
-    return ops.norm(input, p, dim, keepdim, dtype=dtype)
+    if not isinstance(input, torch.Tensor):
+        raise TypeError(f"For `norm_ext`, the `input` must be Tensor!, but get {type(input)}.")
+    if isinstance(p, (bool, int, float)):
+        return vector_norm_ext(input, p, dim, keepdim, dtype=dtype)
+    if p == 'fro':
+        if isinstance(dim, (list, tuple)) and len(dim) > 2:
+            raise ValueError(f"For `norm_ext`, the size of `dim` cannot be greater than 2 "
+                             f"when the norm mode is `fro`.")
+        return execute('linalg_vector_norm', input, 2.0, dim, keepdim,
+                       dtype if dtype is None else dtype_to_type_id('LinalgVectorNorm', 'dtype', dtype))
+    if p == 'nuc':
+        dim = tuple(range(input.ndim)) if dim is None else dim
+        return matrix_norm_ext(input, p, dim, keepdim, dtype=dtype)
+    raise ValueError(f"For `norm_ext`, the value of `p` must be one of [int, float, inf, -inf, 'fro', 'nuc',] "
+                     f"but got `{p}`.")
 
 # nansum
 def nansum(input, dim=None, keepdim=False, *, dtype=None):
@@ -109,48 +153,44 @@ def sum(input, dim=None, keepdim=False, *, dtype=None):
 
 # unique
 def unique(input, sorted=True, return_inverse=False, return_counts=False, dim=None):
-    if use_pyboost() and has_unique:
-        return mindspore.mint.unique(input, sorted, return_inverse, return_counts, dim)
-
-    out, inverse = ops.unique(input)
-    outs = (out,)
+    if dim is None:
+        y, inverse, counts = execute('unique2',
+            input, sorted, return_inverse, return_counts)
+    else:
+        y, inverse, counts = execute('unique_dim', input, sorted, return_inverse, dim)
+    if return_inverse and return_counts:
+        return y, inverse, counts
     if return_inverse:
-        outs += (inverse,)
+        return y, inverse
     if return_counts:
-        counts = (out == input).sum(0, keepdims=True)
-        outs += (counts,)
-    return outs if len(outs) > 1 else outs[0]
+        return y, counts
+    return y
 
 # unique_consecutive
-has_unique_consecutive = hasattr(mindspore.mint, 'unique_consecutive')
 def unique_consecutive(input, return_inverse=False, return_counts=False, dim=None):
-    if use_pyboost() and has_unique_consecutive:
-        return mindspore.mint.unique_consecutive(input, return_inverse, return_counts, dim)
-    return ops.unique_consecutive(input, return_inverse, return_counts, dim)
+    output, idx, counts = execute('unique_consecutive', input, return_inverse, return_counts, dim)
+    if return_inverse and return_counts:
+        return output, idx, counts
+    if return_inverse:
+        return output, idx
+    if return_counts:
+        return output, counts
+    return output
 
 # var
-has_var = hasattr(mindspore.mint, 'var')
 def var(input, dim=None, *, correction=1, keepdim=False):
-    if use_pyboost and has_var:
-        return mindspore.mint.var(input, dim=dim, correction=correction, keepdim=keepdim)
-    return pow(std(input, dim, correction=correction, keepdim=keepdim), 2)
+    return execute('var', input, dim, correction, keepdim)
 
 # var_mean
-has_var_mean = hasattr(mindspore.mint, 'var_mean')
 def var_mean(input, dim=None, *, correction=1, keepdim=False):
-    if use_pyboost and has_var_mean:
-        return mindspore.mint.var_mean(input, dim=dim, correction=correction, keepdim=keepdim)
-    return pow(std(input, dim, correction=correction, keepdim=keepdim), 2), \
-        mean(input, dim, keepdim)
+    return execute('var_mean', input, dim, correction, keepdim)
 
 # count_nonzero
-has_count_nonzero = hasattr(mindspore.mint, 'count_nonzero')
 def count_nonzero(input, dim=None):
-    if use_pyboost() and has_count_nonzero:
-        return mindspore.mint.count_nonzero(input, dim)
-    if dim is None:
-        dim = ()
-    return ops.count_nonzero(input, dim)
+    return execute('count_nonzero', input, dim)
 
-__all__ = ['all', 'amax', 'amin', 'aminmax', 'any', 'argmax', 'argmin', 'count_nonzero', 'logsumexp', 'max', 'mean', 'median', 'min', 'nanmedian', 'nanquantile', 'nansum', 'norm', 'prod', 'quantile', 'std', 'std_mean', 'sum', 'unique', 'unique_consecutive', 'var', 'var_mean']
+__all__ = ['all', 'amax', 'amin', 'aminmax', 'any', 'argmax', 'argmin', 'count_nonzero',
+           'logsumexp', 'max', 'mean', 'median', 'min', 'nansum',
+           'norm', 'prod', 'std', 'std_mean', 'sum', 'unique', 'unique_consecutive',
+           'var', 'var_mean']
  

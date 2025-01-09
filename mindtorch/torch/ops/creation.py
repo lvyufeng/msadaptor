@@ -1,9 +1,8 @@
 """creation ops"""
-from .._bind import get_default_dtype
+from .._bind import get_default_dtype, get_default_device
 from mindspore.ops.auto_generate.gen_arg_handler import dtype_to_type_id
 
 import torch
-from torch.types import device as device_
 from torch.executor import execute
 
 def as_strided(self, size, stride, storage_offset=None):
@@ -20,7 +19,7 @@ def zeros(*size, out=None, dtype=None, layout=None, device=None, requires_grad=F
     if dtype is None:
         dtype = get_default_dtype()
     if device is None:
-        device = device_('cpu')
+        device = get_default_device()
     if isinstance(size[0], (tuple, list)):
         size = size[0]
     output = execute('zeros', size, dtype_to_type_id('Zeros', 'type', dtype),
@@ -46,7 +45,7 @@ def ones(*size, out=None, dtype=None, layout=None, device=None, requires_grad=Fa
     if dtype is None:
         dtype = get_default_dtype()
     if device is None:
-        device = device_('cpu')
+        device = get_default_device()
     if isinstance(size[0], (tuple, list)):
         size = size[0]
     output = execute('ones', size, dtype_to_type_id('Ones', 'type', dtype),
@@ -74,7 +73,7 @@ def arange(start=0, end=None, step=1, *, out=None, dtype=None, layout=None, devi
     if dtype is None:
         dtype = torch.int64
     if device is None:
-        device = device_('cpu')
+        device = get_default_device()
     if device.type == 'cpu':
         output = execute('range', start, end, step, 1000000,
                          device=device, requires_grad=requires_grad, is_leaf=True)
@@ -93,7 +92,7 @@ def range(start=0, end=None, step=1, *, out=None, dtype=None, layout=None, devic
     if dtype is None:
         dtype = torch.int64
     if device is None:
-        device = device_('cpu')
+        device = get_default_device()
     output = execute('range', start, end + 1, step, 1000000,
                      device=device, requires_grad=requires_grad, is_leaf=True)
     if out is None:
@@ -106,7 +105,7 @@ def linspace(start, end, steps, *, out=None, dtype=None, layout=None, device=Non
     if dtype is None:
         dtype = get_default_dtype()
     if device is None:
-        device = device_('cpu')
+        device = get_default_device()
     if device.type == 'cpu':
         start = torch.tensor(start, device=device, dtype=dtype)
         end = torch.tensor(end, device=device, dtype=dtype)
@@ -125,7 +124,7 @@ def linspace(start, end, steps, *, out=None, dtype=None, layout=None, device=Non
 # eye
 def eye(n, m=None, *, out=None, dtype=None, layout=None, device=None, requires_grad=False):
     if device is None:
-        device = device_('cpu')
+        device = get_default_device()
     if dtype is None:
         dtype = get_default_dtype()
     output = execute('eye', n, m, dtype_to_type_id('Eye', 'dtype', dtype),
@@ -140,7 +139,7 @@ def empty(*size, out=None, dtype=None, layout=None, device=None, requires_grad=F
     if dtype is None:
         dtype = get_default_dtype()
     if device is None:
-        device = device_('cpu')
+        device = get_default_device()
     output = execute('empty', size, dtype, device=device, requires_grad=requires_grad, is_leaf=True)
     if out is None:
         return output
@@ -159,7 +158,7 @@ def full(size, fill_value, *, out=None, dtype=None, layout=None, device=None, re
     if dtype is None:
         dtype = get_default_dtype()
     if device is None:
-        device = device_('cpu')
+        device = get_default_device()
     if device.type == 'cpu':
         if not isinstance(fill_value, torch.Tensor):
             fill_value = torch.tensor(fill_value, dtype=dtype, device=device)

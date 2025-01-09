@@ -103,3 +103,9 @@ def reduce_any_npu(*args):
     return pyboost_reduce_all(reduce_any_op, args)
 
 __all__.append('reduce_any_npu')
+
+unique_consecutive_op = UniqueConsecutive().set_device('Ascend')
+def unique_consecutive_npu(*args):
+    return pyboost_unique_consecutive(unique_consecutive_op, args)
+
+__all__.append('unique_consecutive_npu')

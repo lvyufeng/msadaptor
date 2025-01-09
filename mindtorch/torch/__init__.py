@@ -38,7 +38,13 @@ if platform.system().lower() == 'linux':
     if SOC in ('ascend910', 'ascend310b'):
         context.set_context(ascend_config={"precision_mode": "allow_mix_precision"})
 
-from ._tensor import Tensor, tensor, is_tensor
+strided = None
+contiguous_format = None
+preserve_format = None
+
+inf = float("inf")
+nan = float("nan")
+
 from mindspore.common.dtype import *
 from mindspore.common.dtype import tensor_type as dtype
 from mindspore import default_generator, Generator
@@ -46,8 +52,16 @@ from mindspore.hal import Stream
 from mindspore import multiprocessing
 from mindspore.common.api import _pynative_executor
 
-inf = float("inf")
-nan = float("nan")
+long = int64
+int = int32
+float = float32
+bool = bool_
+cfloat = complex64
+cdouble = complex128
+
+
+from ._tensor import Tensor, tensor, is_tensor, \
+    FloatTensor, HalfTensor, BFloat16Tensor, LongTensor, DoubleTensor, IntTensor, BoolTensor
 
 from ._C.size import Size
 from .types import device
@@ -61,21 +75,6 @@ from . import optim, ops, nn, distributions, cuda, distributed#, multiprocessing
 from .autograd import no_grad, enable_grad, value_and_grad
 from ._bind import get_default_dtype, set_default_dtype
 
-FloatTensor = Tensor
-HalfTensor = Tensor
-BFloat16Tensor = Tensor
-LongTensor = Tensor
-
-long = int64
-int = int32
-float = float32
-bool = bool_
-cfloat = complex64
-cdouble = complex128
-
-strided = None
-contiguous_format = None
-preserve_format = None
 
 AUTO_CAST_DTYE = {
     'cuda': bfloat16,

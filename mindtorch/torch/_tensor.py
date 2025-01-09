@@ -1840,7 +1840,20 @@ class Tensor:
         return torch.ops.transpose(output, _dimension + 1, -1)
 
     # Tensor.uniform_
+    def uniform_(self, *args, **kwargs):
+        if len(args) == 1:
+            from_ = args[0]
+        elif len(args) == 2:
+            from_ = args[0]
+            to_ = args[1]
+        elif len(args) == 3:
+            from_ = args[0]
+            to_ = args[1]
 
+        from_ = kwargs.get('from', 0)
+        to_ = kwargs.get('to', 1)
+        generator_ = kwargs.get('generator',)
+        pass
 
     # Tensor.unique
 

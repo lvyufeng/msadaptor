@@ -1,3 +1,4 @@
+import sys
 import torch
 
 def test_torch_autograd():
@@ -11,14 +12,22 @@ def test_torch_autograd():
 
 def test_torch_autograd_retain_grad():
     x = torch.tensor(1.)
+    print(sys.getrefcount(x))
     y = torch.tensor(2.)
-    print(y.tensor.param_info)
     x.requires_grad = True
     z = x + y
     zz = z + 1
     print(z.grad)
     z.retain_grad()
     zz.backward()
+    print(sys.getrefcount(x))
+
+    # z = x + y
+    # zz = z + 1
+    # print(z.grad)
+    # z.retain_grad()
+    # zz.backward()
     print(z.grad)
     print(x.grad)
     print(y.grad)
+    print(sys.getrefcount(x))

@@ -1,153 +1,184 @@
 """creation ops"""
-import numpy as np
-import mindspore
-from mindspore._c_expression import Tensor as CTensor # pylint: disable=no-name-in-module, import-error
-from mindspore import ops
-from mindspore.ops._primitive_cache import _get_cache_prim
-from ..configs import use_pyboost, ON_ORANGE_PI
 from .._bind import get_default_dtype
+from mindspore.ops.auto_generate.gen_arg_handler import dtype_to_type_id
+
+import torch
+from torch.types import device as device_
+from torch.executor import execute
 
 def as_strided(self, size, stride, storage_offset=None):
-    if len(size) != len(stride):
-        raise RuntimeError("mismatch in length of strides and shape.")
-    index = np.arange(0, size[0]*stride[0], stride[0])
-    for i in np.arange(1, len(size)):
-        tmp = np.arange(0, size[i]*stride[i], stride[i])
-        index = np.expand_dims(index, -1)
-        index = index + tmp
-    if storage_offset is not None:
-        index = index + storage_offset
-
-    if index.size == 0:
-        input_indices = mindspore.numpy.empty(index.shape, dtype=mindspore.int32)
-    else:
-        input_indices = mindspore.tensor(index.astype(np.int32))
-    out = ops.gather(self.reshape(-1), input_indices, 0)
-    return out
+    return execute('as_strided', self, size, stride, storage_offset)
 
 # from_numpy
 def from_numpy(ndarray):
-    return mindspore.Tensor(ndarray)
+    return torch.Tensor(ndarray)
 
 # frombuffer
 
 # zeros
-_zeros = ops.Zeros()
-has_zeros = hasattr(mindspore.mint, 'zeros')
-def zeros(*size, dtype=None, device=None, requires_grad=False):
+def zeros(*size, out=None, dtype=None, layout=None, device=None, requires_grad=False):
     if dtype is None:
         dtype = get_default_dtype()
+    if device is None:
+        device = device_('cpu')
     if isinstance(size[0], (tuple, list)):
         size = size[0]
-    if use_pyboost() and has_zeros:
-        return mindspore.mint.zeros(size, dtype=dtype)
-    size = tuple(size)
-    return _zeros(size, dtype)
+    output = execute('zeros', size, dtype_to_type_id('Zeros', 'type', dtype),
+                     device=device, requires_grad=requires_grad, is_leaf=True)
+    if out is None:
+        return output
+    out.data = output
+    return out
 
 # zeros_like
-has_zeros_like = hasattr(mindspore.mint, 'zeros_like')
-def zeros_like(input, *, dtype=None, memory_format=None):
+def zeros_like(input, *, dtype=None, layout=None, device=None, requires_grad=False, memory_format=None):
     if dtype is None:
         dtype = input.dtype
-    if use_pyboost() and has_zeros_like:
-        return mindspore.mint.zeros_like(input, dtype=dtype)
-    return ops.zeros_like(input, dtype=dtype)
+    if device is None:
+        device = input.device
+    if device.type == 'cpu':
+        return execute('zeros_like', input, device=device, requires_grad=requires_grad, is_leaf=True)
+    return execute('zeros_like_ext', input, dtype_to_type_id('ZerosLikeExt', 'dtype', dtype),
+                   device=device, requires_grad=requires_grad, is_leaf=True)
 
 # ones
-_ones = ops.Ones()
-has_ones = hasattr(mindspore.mint, 'ones')
-def ones(*size, dtype=None, device=None):
-    if isinstance(size[0], (tuple, list)):
-        size = size[0]
+def ones(*size, out=None, dtype=None, layout=None, device=None, requires_grad=False):
     if dtype is None:
         dtype = get_default_dtype()
-    if use_pyboost() and has_ones:
-        return mindspore.mint.ones(size, dtype=dtype)
-    return _ones(size, dtype)
+    if device is None:
+        device = device_('cpu')
+    if isinstance(size[0], (tuple, list)):
+        size = size[0]
+    output = execute('ones', size, dtype_to_type_id('Ones', 'type', dtype),
+                     device=device, requires_grad=requires_grad, is_leaf=True)
+    if out is None:
+        return output
+    out.data = output
+    return out
 
 # ones_like
-has_ones_like = hasattr(mindspore.mint, 'ones_like')
-def ones_like(input, *, dtype=None):
+def ones_like(input, *, dtype=None, layout=None, device=None, requires_grad=False, memory_format=None):
     if dtype is None:
         dtype = input.dtype
-    if use_pyboost() and has_ones_like:
-        return mindspore.mint.ones_like(input, dtype=dtype)
-    return ops.ones_like(input, dtype=dtype)
+    if device is None:
+        device = input.device
+    if device.type == 'cpu':
+        return execute('ones_like', input, device=device, requires_grad=requires_grad, is_leaf=True)
+    return execute('ones_like_ext', input, dtype_to_type_id('OnesLikeExt', 'dtype', dtype),
+                   device=device, requires_grad=requires_grad, is_leaf=True)
 
 # arange
-has_arange = hasattr(mindspore.mint, 'arange')
-def arange(start=0, end=None, step=1, *, dtype=None, device=None):
-    if ON_ORANGE_PI and dtype in (None, mindspore.int64):
-        dtype = mindspore.int32
-    if use_pyboost() and has_arange:
-        return mindspore.mint.arange(start, end, step, dtype=dtype)
-    return ops.arange(start, end, step, dtype=dtype)
-
-# range
-def range(start=0, end=None, step=1, dtype=None):
+def arange(start=0, end=None, step=1, *, out=None, dtype=None, layout=None, device=None, requires_grad=False):
     if end is None:
         start, end = 0, start
-    out = ops.range(start, end+1, step)
-    if dtype is not None:
-        out = out.to(dtype)
+    if dtype is None:
+        dtype = torch.int64
+    if device is None:
+        device = device_('cpu')
+    if device.type == 'cpu':
+        output = execute('range', start, end, step, 1000000,
+                         device=device, requires_grad=requires_grad, is_leaf=True)
+    else:
+        output = execute('arange', start, end, step, dtype_to_type_id('Arange', 'dtype', dtype),
+                         device=device, requires_grad=requires_grad, is_leaf=True)
+    if out is None:
+        return output
+    out.data = output
+    return out
+
+# range
+def range(start=0, end=None, step=1, *, out=None, dtype=None, layout=None, device=None, requires_grad=False):
+    if end is None:
+        raise TypeError('range() missing 1 required positional arguments: "end"')
+    if dtype is None:
+        dtype = torch.int64
+    if device is None:
+        device = device_('cpu')
+    output = execute('range', start, end + 1, step, 1000000,
+                     device=device, requires_grad=requires_grad, is_leaf=True)
+    if out is None:
+        return output
+    out.data = output
     return out
 
 # linspace
-has_linspace = hasattr(mindspore.mint, 'linspace')
-def linspace(start, end, steps, *, dtype=None):
-    if dtype is None:
-        dtype = mindspore.float32
-    if use_pyboost() and has_linspace:
-        return mindspore.mint.linspace(start, end, steps, dtype=dtype)
-    return ops.linspace(start, end, steps).to(dtype)
-
-# logspace
-def logspace(start, end, steps, base=10.0, *, dtype=None):
-    return ops.logspace(start, end, steps, base, dtype=dtype)
-
-# eye
-has_eye = hasattr(mindspore.mint, 'eye')
-def eye(n, m=None, *, dtype=None):
-    if use_pyboost() and has_eye:
-        return mindspore.mint.eye(n, m, dtype)
-    return ops.eye(n, m, dtype)
-
-# empty
-has_empty = hasattr(mindspore.mint, 'empty')
-def empty(*size, dtype=None, device=None, requires_grad=False):
-    if isinstance(size[0], (tuple, list)):
-        size = size[0]
+def linspace(start, end, steps, *, out=None, dtype=None, layout=None, device=None, requires_grad=False):
     if dtype is None:
         dtype = get_default_dtype()
-    out = CTensor(dtype, size)
-    out = mindspore.Tensor(out)
-    if requires_grad:
-        out.requires_grad = True
+    if device is None:
+        device = device_('cpu')
+    if device.type == 'cpu':
+        start = torch.tensor(start, device=device, dtype=dtype)
+        end = torch.tensor(end, device=device, dtype=dtype)
+        output = execute('linspace', start, end, steps,
+                         device=device, requires_grad=requires_grad, is_leaf=True)
+    else:
+        output = execute('lin_space_ext', start, end, steps, dtype_to_type_id('LinSpaceExt', 'dtype', dtype),
+                         device=device, requires_grad=requires_grad, is_leaf=True)
+    if out is None:
+        return output
+    out.data = output
+    return out
+
+# logspace
+
+# eye
+def eye(n, m=None, *, out=None, dtype=None, layout=None, device=None, requires_grad=False):
+    if device is None:
+        device = device_('cpu')
+    if dtype is None:
+        dtype = get_default_dtype()
+    output = execute('eye', n, m, dtype_to_type_id('Eye', 'dtype', dtype),
+                     device=device, requires_grad=requires_grad, is_leaf=True)
+    if out is None:
+        return output
+    out.data = output
+    return out
+
+# empty
+def empty(*size, out=None, dtype=None, layout=None, device=None, requires_grad=False, pin_memory=False, memory_format=None):
+    if dtype is None:
+        dtype = get_default_dtype()
+    if device is None:
+        device = device_('cpu')
+    output = execute('empty', size, dtype, device=device, requires_grad=requires_grad, is_leaf=True)
+    if out is None:
+        return output
+    out.data = output
     return out
 
 # empty_like
-has_empty_like = hasattr(mindspore.mint, 'empty_like')
-def empty_like(input):
-    return empty(input.shape, dtype=input.dtype)
+def empty_like(input, *, dtype=None, layout=None, device=None, requires_grad=False, memory_format=None):
+    return empty(input.shape, dtype=input.dtype, layout=layout, device=input.device, requires_grad=requires_grad)
 
 # empty_strided
 
 
 # full
-has_full = hasattr(mindspore.mint, 'full')
-def full(size, fill_value, *, dtype=None):
-    if use_pyboost() and has_full:
-        return mindspore.mint.ones(size, dtype=dtype) * fill_value
-    return ops.full(size, fill_value, dtype=dtype)
+def full(size, fill_value, *, out=None, dtype=None, layout=None, device=None, requires_grad=False):
+    if dtype is None:
+        dtype = get_default_dtype()
+    if device is None:
+        device = device_('cpu')
+    if device.type == 'cpu':
+        if not isinstance(fill_value, torch.Tensor):
+            fill_value = torch.tensor(fill_value, dtype=dtype, device=device)
+        output = execute('full', size, fill_value, device=device, requires_grad=requires_grad, is_leaf=True)
+    else:
+        if isinstance(fill_value, torch.Tensor):
+            output = execute('fill_tensor', size, fill_value, dtype_to_type_id('FillScalar', 'dtype', dtype),
+                             device=device, requires_grad=requires_grad, is_leaf=True)
+        else:
+            output = execute('fill_scalar', size, fill_value, dtype_to_type_id('FillTensor', 'dtype', dtype),
+                             device=device, requires_grad=requires_grad, is_leaf=True)
+    if out is None:
+        return output
+    out.data = output
+    return out
 
 # full_like
-has_full_like = hasattr(mindspore.mint, 'full_like')
-def full_like(input, fill_value, *, dtype=None):
-    if use_pyboost() and has_full_like:
-        return mindspore.mint.full_like(input, fill_value, dtype=dtype)
-    if dtype is None:
-        dtype = input.dtype
-    return full(input.shape, fill_value, dtype=dtype)
+def full_like(input, fill_value, *, dtype=None, layout=None, device=None, requires_grad=False, memory_format=None):
+    return full(input.shape, fill_value, dtype=dtype, layout=layout, device=input.device, requires_grad=requires_grad)
 
 # quantize_per_tensor
 
@@ -159,23 +190,21 @@ def full_like(input, fill_value, *, dtype=None):
 
 
 # complex
-def complex(real, imag):
-    _complex = _get_cache_prim(ops.Complex)()
-    return _complex(real, imag)
+
 
 # polar
-has_polar = hasattr(mindspore.mint, 'polar')
-def polar(abs, angle):
-    if use_pyboost() and has_polar:
-        return mindspore.mint.polar(abs, angle)
-    return ops.polar(abs, angle)
+def polar(abs, angle, *, out=None):
+    output = execute('polar', abs, angle)
+    if out is None:
+        return output
+    out.data = output
+    return out
+
 
 # heaviside
-def heaviside(input, values):
-    return ops.heaviside(input, values)
 
-__all__ = ['arange', 'as_strided', 'complex', 'empty', 'empty_like',
+__all__ = ['arange', 'as_strided', 'empty', 'empty_like',
            'eye', 'from_numpy', 'full', 'full_like',
-           'heaviside', 'linspace', 'logspace', 'ones', 'ones_like',
+           'linspace', 'ones', 'ones_like',
            'polar', 'range', 'zeros', 'zeros_like'
 ]

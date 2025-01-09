@@ -3,7 +3,6 @@ from mindspore import ops
 from mindspore.ops._primitive_cache import _get_cache_prim
 from ..configs import use_pyboost
 from .array import narrow
-from ._inner import pad
 
 def rfft(input, n=None, dim=-1, norm="backward"):
     if use_pyboost():

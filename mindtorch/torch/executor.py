@@ -31,21 +31,30 @@ def create_function(func_name):
 def execute(func_name, *args, **kwargs):
     global fn_count
     global weights_dict
-    funcs = {arg.fn for arg in args if isinstance(arg, Tensor)}
-    assert len(funcs) == 1
-    func = funcs.pop()
-    requires_grad = any([arg.requires_grad for arg in args if isinstance(arg, Tensor)])
-    if requires_grad and func is None:
-        func = create_function('top_cell_func_' + str(fn_count))
-        _pynative_executor.set_grad_flag(True)
-        _pynative_executor.new_graph(func)
-        fn_count += 1
-        weights_dict[func] = []
+    requires_grad = kwargs.pop('requires_grad', None)
+    is_leaf = kwargs.pop('if_leaf', None)
+    func = None
+    if requires_grad is None:
+        funcs = {arg.fn for arg in args if isinstance(arg, Tensor)}
+        assert len(funcs) == 1
+        func = funcs.pop()
+        requires_grad = any([arg.requires_grad for arg in args if isinstance(arg, Tensor)])
+        if requires_grad and func is None:
+            func = create_function('top_cell_func_' + str(fn_count))
+            _pynative_executor.set_grad_flag(True)
+            _pynative_executor.new_graph(func)
+            fn_count += 1
+            weights_dict[func] = []
+
+    if is_leaf is None:
+        is_leaf = not requires_grad
 
     params = [arg for arg in args if isinstance(arg, Tensor) and arg.tensor is not None and arg.tensor.param_info is not None]
-    weights_dict[func].extend(params)
+    if func is not None:
+        weights_dict[func].extend(params)
     out, device = dispatcher.dispatch(func_name, *args, **kwargs)
     out_tensor = _convert_stub(out, device=device)
+    out_tensor.is_leaf = is_leaf
     out_tensor.requires_grad_(requires_grad)
     out_tensor.fn = func
     return out_tensor

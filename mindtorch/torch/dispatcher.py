@@ -29,14 +29,15 @@ class Dispatcher(metaclass=SingletonMeta):
         self._registry[device][func_name] = func
 
     def dispatch(self, func_name, *args, **kwargs):
-        device = kwargs.get('device', None)
+        device = kwargs.pop('device', None)
+        if isinstance(device, str):
+            device = device_(device)
+
         if device is None:
             devices = {arg.device for arg in args if isinstance(arg, torch.Tensor)}
             if len(devices) > 1:
                 raise ValueError("All tensor arguments must be on the same device.")
             device = next(iter(devices)) if devices else device_('cpu')
-        else:
-            args += (device_map[device.type],)
 
         func = self._registry[device.type].get(func_name, None)
         if func is None:

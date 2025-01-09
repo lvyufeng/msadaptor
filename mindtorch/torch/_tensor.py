@@ -8,6 +8,7 @@ from mindspore._c_expression import Tensor as MSTensor, ParamInfo
 from mindspore._c_expression import TensorNode
 from mindspore.ops import GradOperation
 from mindspore.common.api import _pynative_executor
+from mindspore._c_expression import typing
 
 import torch
 from torch.dispatcher import dispatcher, device_map
@@ -21,6 +22,8 @@ class Tensor:
     _requires_grad = False
     grad = None
     fn = None
+    is_leaf = False
+    _retain_grad = False
 
     def __init__(self, *input, device=None, dtype=None): # pylint: disable=super-init-not-called
         if device is None:
@@ -31,12 +34,19 @@ class Tensor:
             if dtype is None:
                 dtype = mindspore.float32
             self.tensor = MSTensor(shape=input, dtype=dtype)
+            self.is_leaf = True
         elif isinstance(input[0], TensorNode):
             self.stub = input[0]
         elif isinstance(input[0], MSTensor):
             self.tensor = input[0]
         elif isinstance(input[0], np.ndarray):
             self.tensor = MSTensor(input[0])
+            self.is_leaf = True
+        elif isinstance(input[0], Tensor):
+            self.tensor = input[0].tensor
+            self.stub = input[0].stub
+            self.requires_grad_(input[0].requires_grad)
+            self.is_leaf = input[0].is_leaf
         else:
             raise ValueError(f'not support data type {type(input[0])}')
         self.__class__ = dtype_class_map[self.dtype]
@@ -101,24 +111,35 @@ class Tensor:
 
     @requires_grad.setter
     def requires_grad(self, requires_grad):
+        if not isinstance(self.dtype, typing.Float):
+            raise RuntimeError('only Tensors of floating point and complex dtype can require gradients')
         self._requires_grad = requires_grad
         if self.tensor is not None and requires_grad:
             if self.tensor.param_info is None:
                 self.tensor.param_info = ParamInfo()
                 self.tensor.param_info.name = str(uuid.uuid4())
             self.tensor.param_info.requires_grad = requires_grad
-            if requires_grad and not hasattr('self', 'hook'):
-                self.retain_grad()
+        if requires_grad and self.is_leaf and not hasattr('self', 'attach_grad_hook'):
+            self.attach_grad()
+            self._retain_grad = True
+
+    def attach_grad(self):
+        weak_self = weakref.ref(self)
+        def hook(grad):
+            if weak_self()._retain_grad:
+                if weak_self().grad is None:
+                    weak_self().grad = Tensor(grad)
+                else:
+                    weak_self().grad += Tensor(grad)
+            return grad
+        self.attach_grad_hook = self.register_hook(hook)
 
     def retain_grad(self):
-        self_ref = weakref.ref(self)
-        def hook(grad):
-            if self_ref().grad is None:
-                self_ref().grad = Tensor(grad)
-            else:
-                self_ref().grad += Tensor(grad)
-            return grad
-        self.hook = self.register_hook(hook)
+        if self.is_leaf:
+            self._retain_grad = True
+        else:
+            self._retain_grad = True
+            self.attach_grad()
 
     @property
     def shape(self):
@@ -1872,6 +1893,7 @@ def tensor(data, *, dtype=None, device=None, requires_grad=False):
     data = MSTensor(data, dtype=dtype)
     tensor = Tensor(data).to(device)
     tensor.requires_grad_(requires_grad)
+    tensor.is_leaf = True
     return tensor
 
 def is_tensor(x):

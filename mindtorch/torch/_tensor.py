@@ -1,11 +1,11 @@
 import mindspore
-from mindspore import Tensor, ops
+from mindspore import Tensor, ops, mint
 from mindspore.common._stub_tensor import StubTensor
 from mindspore._c_expression import Tensor as Tensor_
 
 from ._utils import _rebuild_tensor_v2
 from ._C.size import Size
-from .ops import transpose, mean, repeat_interleave, unsqueeze, pow
+from .ops import transpose, mean, unsqueeze, pow
 
 MS_PT_DTYPE_MAP = {
     'Float32': 'torch.cuda.FloatTensor',
@@ -108,12 +108,6 @@ def dim(self):
 Tensor.dim = dim
 StubTensor.dim = dim
 
-def clone(self):
-    return self.copy()
-
-Tensor.clone = clone
-StubTensor.clone = clone
-
 def __or__(self, other):
     if isinstance(other, (int, bool, float, Tensor)):
         return ops.bitwise_or(self.to(mindspore.int32), other.to(mindspore.int32)).bool()
@@ -122,8 +116,8 @@ def __or__(self, other):
 Tensor.__or__ = __or__
 StubTensor.__or__ = __or__
 
-Tensor.device = 'NO_INFO'
-StubTensor.device = 'NO_INFO'
+Tensor.device = 'Ascend'
+StubTensor.device = 'Ascend'
 
 def div_(self, value, *, rounding_mode=None):
     out = self.div(value, rounding_mode=rounding_mode)
@@ -169,6 +163,15 @@ StubTensor.mean = mean
 
 Tensor.is_cuda = True
 StubTensor.is_cuda = True
+
+Tensor.expand = mint.broadcast_to
+StubTensor.expand = mint.broadcast_to
+
+def repeat_interleave(inputs, repeats, dim):
+    shape = inputs.shape
+    new_shape = shape[:dim + 1] + (repeats,) +shape[dim + 1:]
+    out_shape = shape[:dim] + (shape[dim] * repeats,) + shape[dim + 1:]
+    return inputs.unsqueeze(dim + 1).expand(new_shape).reshape(out_shape)
 
 Tensor.repeat_interleave = repeat_interleave
 StubTensor.repeat_interleave = repeat_interleave

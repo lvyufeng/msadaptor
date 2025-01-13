@@ -234,7 +234,8 @@ has_exp = hasattr(mindspore.mint, 'exp')
 def exp(input, out=None):
     if use_pyboost() and has_exp:
         output = mindspore.mint.exp(input)
-    output = ops.exp(input)
+    else:
+        output = ops.exp(input)
     if out is not None:
         out.data = output
     else:

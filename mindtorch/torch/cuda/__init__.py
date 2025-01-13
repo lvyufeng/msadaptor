@@ -12,7 +12,7 @@ def manual_seed_all(seed: int):
     manual_seed(seed)
 
 def current_device():
-    return -1
+    return 'Ascend'
 
 def is_available():
     return True

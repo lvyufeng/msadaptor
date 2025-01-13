@@ -119,8 +119,7 @@ def empty(*size, dtype=None, device=None, requires_grad=False):
         size = size[0]
     if dtype is None:
         dtype = get_default_dtype()
-    out = CTensor(dtype, size)
-    out = mindspore.Tensor(out)
+    out = mindspore.mint.empty(size, dtype=dtype, device=device)
     if requires_grad:
         out.requires_grad = True
     return out

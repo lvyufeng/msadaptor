@@ -215,9 +215,8 @@ def scatter_update(input, indices, updates):
 # split
 has_split = hasattr(mindspore.mint, 'split')
 def split(tensor, split_size_or_sections, dim=0):
-    # FIXME: mint.split accuracy issue
-    # if use_pyboost() and has_split:
-    #     return mindspore.mint.split(tensor, split_size_or_sections, dim)
+    if use_pyboost() and has_split:
+        return mindspore.mint.split(tensor, split_size_or_sections, dim)
     return ops.split(tensor, split_size_or_sections, dim)
 
 # squeeze

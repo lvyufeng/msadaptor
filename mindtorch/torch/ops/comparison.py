@@ -17,7 +17,7 @@ def eq(input, other):
 
 # equal
 def equal(input, other):
-    return execute('equal_ext', input, other)
+    return execute('equal', input, other)
 
 # ge
 def ge(input, other):

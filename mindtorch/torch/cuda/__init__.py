@@ -1,12 +1,14 @@
 from typing import Any
 
-from mindspore import Tensor
+import mindspore
 from mindspore import get_rng_state, set_rng_state, manual_seed
 from mindspore.hal import *
 
-FloatTensor = Tensor
-HalfTensor = Tensor
-BFloat16Tensor = Tensor
+import torch
+
+FloatTensor = torch.FloatTensor
+HalfTensor = torch.FloatTensor
+BFloat16Tensor = torch.BFloat16Tensor
 
 def manual_seed_all(seed: int):
     manual_seed(seed)
@@ -15,7 +17,7 @@ def current_device():
     return -1
 
 def is_available():
-    return True
+    return mindspore.get_context('device_target') == 'GPU'
 
 def set_device(device):
     pass

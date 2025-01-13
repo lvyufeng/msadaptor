@@ -46,12 +46,13 @@ inf = float("inf")
 nan = float("nan")
 
 from mindspore.common.dtype import *
-from mindspore.common.dtype import tensor_type as dtype
 from mindspore import default_generator, Generator
 from mindspore.hal import Stream
 from mindspore import multiprocessing
 from mindspore.common.api import _pynative_executor
+from mindspore._c_expression.typing import Type
 
+dtype = Type
 long = int64
 int = int32
 float = float32
@@ -61,8 +62,10 @@ cdouble = complex128
 
 
 from ._tensor import Tensor, tensor, is_tensor, \
-    FloatTensor, HalfTensor, BFloat16Tensor, LongTensor, DoubleTensor, IntTensor, BoolTensor
+    FloatTensor, HalfTensor, BFloat16Tensor, LongTensor, DoubleTensor, IntTensor, \
+    BoolTensor, ByteTensor
 
+from . import _C
 from ._C.size import Size
 from .types import device
 from .ops import *
@@ -71,7 +74,7 @@ from torch import amp as amp, random as random, serialization as serialization, 
     jit as jit
 from torch.random import get_rng_state, initial_seed, manual_seed, seed, set_rng_state
 from torch.serialization import load, save
-from . import optim, ops, nn, distributions, cuda, distributed#, multiprocessing
+from . import optim, ops, nn, distributions, cuda, npu, distributed#, multiprocessing
 from .autograd import no_grad, enable_grad, value_and_grad
 from ._bind import get_default_dtype, set_default_dtype
 
@@ -104,5 +107,31 @@ def compile(fn=None, *args, **kwargs):
     if fn is not None:
         return wrap_func(fn)
     return wrap_func
+
+def _has_compatible_shallow_copy_type(tensor, other):
+    """
+    Mimics the behavior of torch._has_compatible_shallow_copy_type.
+
+    Args:
+        tensor (torch.Tensor): The source tensor.
+        other (torch.Tensor): The target tensor to check compatibility.
+
+    Returns:
+        bool: True if `tensor` and `other` have compatible types for shallow copy.
+    """
+    # Check if both tensors have the same type
+    if type(tensor) is not type(other):
+        return False
+
+    # Check if both tensors are on the same device
+    if tensor.device != other.device:
+        return False
+
+    # Check if both tensors have the same dtype
+    if tensor.dtype != other.dtype:
+        return False
+
+    # Compatibility confirmed
+    return True
 
 __version__ = "2.5"

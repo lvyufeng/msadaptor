@@ -367,8 +367,8 @@ def logical_xor(input, other):
 
 # mul
 def mul(input, other):
-    if isinstance(other, (float, int, bool)) and isinstance(input, torch.Tensor):
-        return execute("muls", input, other)
+    # if isinstance(other, (float, int, bool)) and isinstance(input, torch.Tensor):
+    #     return execute("muls", input, other)
     return execute("mul", input, other)
 
 

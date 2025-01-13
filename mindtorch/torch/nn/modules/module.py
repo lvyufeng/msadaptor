@@ -7,10 +7,8 @@ from typing import Dict, Optional, Callable, Set, overload, TypeVar, Any, Iterat
 import itertools
 from collections import OrderedDict, namedtuple
 
-import mindspore
-from mindspore import Tensor
-from mindspore.common._stub_tensor import StubTensor
-from mindspore.common.dtype import Float
+import torch
+from torch import Tensor
 
 from ...configs import ON_ORANGE_PI, set_pyboost
 from ..parameter import Parameter
@@ -486,7 +484,7 @@ class Module:
             raise KeyError("buffer name can't be empty string \"\"")
         elif hasattr(self, name) and name not in self._buffers:
             raise KeyError(f"attribute '{name}' already exists")
-        elif tensor is not None and not isinstance(tensor, (Tensor, mindspore.Tensor)):
+        elif tensor is not None and not isinstance(tensor, torch.Tensor):
             raise TypeError(f"cannot assign '{type(tensor)}' object to buffer '{name}' "
                             "(torch Tensor or None required)"
                             )
@@ -495,8 +493,6 @@ class Module:
                 output = hook(self, name, tensor)
                 if output is not None:
                     tensor = output
-            if isinstance(tensor, StubTensor):
-                tensor = tensor.stub_sync()
             self._buffers[name] = tensor
             if persistent:
                 self._non_persistent_buffers_set.discard(name)
@@ -600,19 +596,88 @@ class Module:
             for module in self.children():
                 module._apply(fn)
 
+        def compute_should_use_set_data(tensor, tensor_applied):
+            if torch._has_compatible_shallow_copy_type(tensor, tensor_applied):
+                # If the new tensor has compatible tensor type as the existing tensor,
+                # the current behavior is to change the tensor in-place using `.data =`,
+                # and the future behavior is to overwrite the existing tensor. However,
+                # changing the current behavior is a BC-breaking change, and we want it
+                # to happen in future releases. So for now we introduce the
+                # `torch.__future__.get_overwrite_module_params_on_conversion()`
+                # global flag to let the user control whether they want the future
+                # behavior of overwriting the existing tensor or not.
+                return True
+            else:
+                return False
+
+        should_use_swap_tensors = False
+
         for key, param in self._parameters.items():
             if param is None:
                 continue
-            param_applied = fn(param)
+            # Tensors stored in modules are graph leaves, and we don't want to
+            # track autograd history of `param_applied`, so we have to use
+            # `with torch.no_grad():`
+            with torch.no_grad():
+                param_applied = fn(param)
+            p_should_use_set_data = compute_should_use_set_data(param, param_applied)
 
-            assert isinstance(param, Parameter)
-            param.data = param_applied
+            # subclasses may have multiple child tensors so we need to use swap_tensors
+            # p_should_use_swap_tensors = (
+            #     should_use_swap_tensors or is_traceable_wrapper_subclass(param_applied)
+            # )
+            p_should_use_swap_tensors = False
 
-            # branch 'g_should_use_set_data'
             param_grad = param.grad
+            if p_should_use_swap_tensors:
+                try:
+                    if param_grad is not None:
+                        # Accessing param.grad makes its at::Tensor's use_count 2, which will prevent swapping.
+                        # Decrement use count of the gradient by setting to None
+                        param.grad = None
+                    param_applied = torch.nn.Parameter(
+                        param_applied, requires_grad=param.requires_grad
+                    )
+                    torch.utils.swap_tensors(param, param_applied)
+                except Exception as e:
+                    if param_grad is not None:
+                        param.grad = param_grad
+                    raise RuntimeError(
+                        f"_apply(): Couldn't swap {self._get_name()}.{key}"
+                    ) from e
+                out_param = param
+            elif p_should_use_set_data:
+                param.data = param_applied
+                out_param = param
+            else:
+                assert isinstance(param, Parameter)
+                assert param.is_leaf
+                out_param = Parameter(param_applied, param.requires_grad)
+                self._parameters[key] = out_param
+
             if param_grad is not None:
-                grad_applied = fn(param_grad)
-                param.grad.data = grad_applied
+                with torch.no_grad():
+                    grad_applied = fn(param_grad)
+                g_should_use_set_data = compute_should_use_set_data(
+                    param_grad, grad_applied
+                )
+                if p_should_use_swap_tensors:
+                    grad_applied.requires_grad_(param_grad.requires_grad)
+                    try:
+                        torch.utils.swap_tensors(param_grad, grad_applied)
+                    except Exception as e:
+                        raise RuntimeError(
+                            f"_apply(): Couldn't swap {self._get_name()}.{key}.grad"
+                        ) from e
+                    out_param.grad = param_grad
+                elif g_should_use_set_data:
+                    assert out_param.grad is not None
+                    out_param.grad.data = grad_applied
+                else:
+                    assert param_grad.is_leaf
+                    out_param.grad = grad_applied.requires_grad_(
+                        param_grad.requires_grad
+                    )
 
         for key, buf in self._buffers.items():
             if buf is not None:
@@ -644,12 +709,12 @@ class Module:
             Parameter containing:
              1  1
              1  1
-            [mindspore.Tensor of size 2x2]
+            [torch.Tensor of size 2x2]
             Linear (2 -> 2)
             Parameter containing:
              1  1
              1  1
-            [mindspore.Tensor of size 2x2]
+            [torch.Tensor of size 2x2]
             Sequential (
               (0): Linear (2 -> 2)
               (1): Linear (2 -> 2)
@@ -737,7 +802,7 @@ class Module:
                         result = hook_result
 
             if bw_hook:
-                if not isinstance(result, (mindspore.Tensor, tuple)):
+                if not isinstance(result, (torch.Tensor, tuple)):
                     warnings.warn("For backward hooks to be called,"
                                   " module output should be a Tensor or a tuple of Tensors"
                                   f" but received {type(result)}")
@@ -746,9 +811,9 @@ class Module:
             # Handle the non-full backward hooks
             if non_full_backward_hooks:
                 var = result
-                while not isinstance(var, mindspore.Tensor):
+                while not isinstance(var, torch.Tensor):
                     if isinstance(var, dict):
-                        var = next(v for v in var.values() if isinstance(v, mindspore.Tensor))
+                        var = next(v for v in var.values() if isinstance(v, torch.Tensor))
                     else:
                         var = var[0]
                 # grad_fn = var.grad_fn
@@ -851,8 +916,6 @@ class Module:
 
         params = self.__dict__.get('_parameters')
 
-        if isinstance(value, StubTensor):
-            value = value.stub_sync()
         if isinstance(value, Parameter):
             if params is None:
                 raise AttributeError(
@@ -892,7 +955,7 @@ class Module:
                 if buffers is not None and name in buffers:
                     if value is not None and not isinstance(value, Tensor):
                         raise TypeError(f"cannot assign '{type(value)}' as buffer '{name}' "
-                                        "(mindspore.Tensor or None expected)"
+                                        "(torch.Tensor or None expected)"
                                         )
                     for hook in _global_buffer_registration_hooks.values():
                         output = hook(self, name, value)
@@ -1020,7 +1083,7 @@ class Module:
                 input_param = state_dict[key]
                 if not isinstance(input_param, Tensor):
                     error_msgs.append(f'While copying the parameter named "{key}", '
-                                      'expected mindspore.Tensor or Tensor-like object from checkpoint but '
+                                      'expected torch.Tensor or Tensor-like object from checkpoint but '
                                       f'received {type(input_param)}'
                                       )
                     continue
@@ -1199,8 +1262,8 @@ class Module:
             >>> # xdoctest: +SKIP("undefined vars")
             >>> for param in model.parameters():
             >>>     print(type(param), param.shape)
-            <class 'mindspore.Tensor'> (20L,)
-            <class 'mindspore.Tensor'> (20L, 1L, 5L, 5L)
+            <class 'torch.Tensor'> (20L,)
+            <class 'torch.Tensor'> (20L, 1L, 5L, 5L)
 
         """
         for name, param in self.named_parameters(recurse=recurse):
@@ -1326,15 +1389,15 @@ class Module:
                 are direct members of this module.
 
         Yields:
-            mindspore.Tensor: module buffer
+            torch.Tensor: module buffer
 
         Example::
 
             >>> # xdoctest: +SKIP("undefined vars")
             >>> for buf in model.buffers():
             >>>     print(type(buf), buf.shape)
-            <class 'mindspore.Tensor'> (20L,)
-            <class 'mindspore.Tensor'> (20L, 1L, 5L, 5L)
+            <class 'torch.Tensor'> (20L,)
+            <class 'torch.Tensor'> (20L, 1L, 5L, 5L)
 
         """
         for _, buf in self.named_buffers(recurse=recurse):
@@ -1352,7 +1415,7 @@ class Module:
             remove_duplicate (bool, optional): whether to remove the duplicated buffers in the result. Defaults to True.
 
         Yields:
-            (str, mindspore.Tensor): Tuple containing the name and buffer
+            (str, torch.Tensor): Tuple containing the name and buffer
 
         Example::
 
@@ -1542,14 +1605,128 @@ class Module:
     def _get_name(self):
         return self.__class__.__name__
 
-    def to(self, dtype=None):
+    def to(self, *args, **kwargs):
+        r"""Move and/or cast the parameters and buffers.
+
+        This can be called as
+
+        .. function:: to(device=None, dtype=None, non_blocking=False)
+           :noindex:
+
+        .. function:: to(dtype, non_blocking=False)
+           :noindex:
+
+        .. function:: to(tensor, non_blocking=False)
+           :noindex:
+
+        .. function:: to(memory_format=torch.channels_last)
+           :noindex:
+
+        Its signature is similar to :meth:`torch.Tensor.to`, but only accepts
+        floating point or complex :attr:`dtype`\ s. In addition, this method will
+        only cast the floating point or complex parameters and buffers to :attr:`dtype`
+        (if given). The integral parameters and buffers will be moved
+        :attr:`device`, if that is given, but with dtypes unchanged. When
+        :attr:`non_blocking` is set, it tries to convert/move asynchronously
+        with respect to the host if possible, e.g., moving CPU Tensors with
+        pinned memory to CUDA devices.
+
+        See below for examples.
+
+        .. note::
+            This method modifies the module in-place.
+
+        Args:
+            device (:class:`torch.device`): the desired device of the parameters
+                and buffers in this module
+            dtype (:class:`torch.dtype`): the desired floating point or complex dtype of
+                the parameters and buffers in this module
+            tensor (torch.Tensor): Tensor whose dtype and device are the desired
+                dtype and device for all parameters and buffers in this module
+            memory_format (:class:`torch.memory_format`): the desired memory
+                format for 4D parameters and buffers in this module (keyword
+                only argument)
+
+        Returns:
+            Module: self
+
+        Examples::
+
+            >>> # xdoctest: +IGNORE_WANT("non-deterministic")
+            >>> linear = nn.Linear(2, 2)
+            >>> linear.weight
+            Parameter containing:
+            tensor([[ 0.1913, -0.3420],
+                    [-0.5113, -0.2325]])
+            >>> linear.to(torch.double)
+            Linear(in_features=2, out_features=2, bias=True)
+            >>> linear.weight
+            Parameter containing:
+            tensor([[ 0.1913, -0.3420],
+                    [-0.5113, -0.2325]], dtype=torch.float64)
+            >>> # xdoctest: +REQUIRES(env:TORCH_DOCTEST_CUDA1)
+            >>> gpu1 = torch.device("cuda:1")
+            >>> linear.to(gpu1, dtype=torch.half, non_blocking=True)
+            Linear(in_features=2, out_features=2, bias=True)
+            >>> linear.weight
+            Parameter containing:
+            tensor([[ 0.1914, -0.3420],
+                    [-0.5112, -0.2324]], dtype=torch.float16, device='cuda:1')
+            >>> cpu = torch.device("cpu")
+            >>> linear.to(cpu)
+            Linear(in_features=2, out_features=2, bias=True)
+            >>> linear.weight
+            Parameter containing:
+            tensor([[ 0.1914, -0.3420],
+                    [-0.5112, -0.2324]], dtype=torch.float16)
+
+            >>> linear = nn.Linear(2, 2, bias=None).to(torch.cdouble)
+            >>> linear.weight
+            Parameter containing:
+            tensor([[ 0.3741+0.j,  0.2382+0.j],
+                    [ 0.5593+0.j, -0.4443+0.j]], dtype=torch.complex128)
+            >>> linear(torch.ones(3, 2, dtype=torch.cdouble))
+            tensor([[0.6122+0.j, 0.1150+0.j],
+                    [0.6122+0.j, 0.1150+0.j],
+                    [0.6122+0.j, 0.1150+0.j]], dtype=torch.complex128)
+
+        """
+        device, dtype, non_blocking, convert_to_format = torch._C._nn._parse_to(
+            *args, **kwargs
+        )
+
+        if dtype is not None:
+            if not (dtype.is_floating_point or dtype.is_complex):
+                raise TypeError(
+                    "nn.Module.to only accepts floating point or complex "
+                    f"dtypes, but got desired dtype={dtype}"
+                )
+            if dtype.is_complex:
+                warnings.warn(
+                    "Complex modules are a new feature under active development whose design may change, "
+                    "and some modules might not work as expected when using complex tensors as parameters or buffers. "
+                    "Please file an issue at https://github.com/pytorch/pytorch/issues/new?template=bug-report.yml "
+                    "if a complex module does not work as expected."
+                )
+
         def convert(t):
             try:
-                return t.to(dtype) if isinstance(t.dtype, Float) else t
+                if convert_to_format is not None and t.dim() in (4, 5):
+                    return t.to(
+                        device,
+                        dtype if t.is_floating_point() or t.is_complex() else None,
+                        non_blocking,
+                        memory_format=convert_to_format,
+                    )
+                return t.to(
+                    device,
+                    dtype if t.is_floating_point() or t.is_complex() else None,
+                    non_blocking=non_blocking,
+                )
             except NotImplementedError as e:
                 if str(e) == "Cannot copy out of meta tensor; no data!":
                     raise NotImplementedError(
-                        f"{e} Please use nn.Module.to_empty() instead of nn.Module.to() "
+                        f"{e} Please use torch.nn.Module.to_empty() instead of torch.nn.Module.to() "
                         f"when moving module from meta to a different device."
                     ) from None
                 else:
@@ -1680,7 +1857,7 @@ class Module:
                 Default: ``None``.
             prefix (str, optional): a prefix added to parameter and buffer
                 names to compose the keys in state_dict. Default: ``''``.
-            keep_vars (bool, optional): by default the :class:`~mindspore.Tensor` s
+            keep_vars (bool, optional): by default the :class:`~torch.Tensor` s
                 returned in the state dict are detached from autograd. If it's
                 set to ``True``, detaching will not be performed.
                 Default: ``False``.

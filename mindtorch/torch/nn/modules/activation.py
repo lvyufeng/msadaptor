@@ -77,8 +77,19 @@ class ReLU(Module):
         >>> input = torch.randn(2).unsqueeze(0)
         >>> output = torch.cat((m(input), m(-input)))
     """
+    __constants__ = ["inplace"]
+    inplace: bool
+
+    def __init__(self, inplace: bool = False):
+        super().__init__()
+        self.inplace = inplace
+
     def forward(self, input: Tensor) -> Tensor:
-        return F.relu(input)
+        return F.relu(input, inplace=self.inplace)
+
+    def extra_repr(self) -> str:
+        inplace_str = "inplace=True" if self.inplace else ""
+        return inplace_str
 
 
 class LeakyReLU(Module):

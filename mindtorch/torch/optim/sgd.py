@@ -1,8 +1,8 @@
 """sgd"""
 # pylint: disable=use-dict-literal
 # mypy: allow-untyped-defs
-import mindspore
-from mindspore import Tensor
+import torch
+from torch import Tensor
 from .optimizer import (
     Optimizer,
 )
@@ -48,7 +48,7 @@ class SGD(Optimizer):
             group.setdefault("nesterov", False)
             group.setdefault("maximize", False)
 
-    def step(self, grads=None):
+    def step(self):
         """Performs a single optimization step.
 
         Arguments:
@@ -56,14 +56,14 @@ class SGD(Optimizer):
                 and returns the loss.
         """
         loss = None
-        start = 0
         for group in self.param_groups:
             weight_decay = float(group['weight_decay'])
-            momentum = Tensor(group['momentum'], mindspore.float32)
-            lr = Tensor(group['lr'], mindspore.float32)
+            momentum = torch.tensor(group['momentum'], dtype=torch.float32, device=group['params'][0].device)
+            lr = torch.tensor(group['lr'], dtype=torch.float32, device=group['params'][0].device)
+
             dampening = float(group['dampening'])
             nesterov = group['nesterov']
-            maximize=group["maximize"]
+            maximize = group["maximize"]
 
             for p in group['params']:
                 d_p = p.grad if not maximize else -p.grad
@@ -83,8 +83,8 @@ class SGD(Optimizer):
                 #         d_p = buf
                 # new_p = p.add(d_p, alpha=-group['lr'])
                 # assign(p, new_p)
-                stat = Tensor(ops.ones_like(p))
-                accum = Tensor(ops.zeros_like(p))
+                stat = torch.ones_like(p)
+                accum = torch.zeros_like(p)
                 ops.optim.raw_sgd(p, d_p, lr, dampening, weight_decay, nesterov, accum, momentum, stat)
 
         return loss

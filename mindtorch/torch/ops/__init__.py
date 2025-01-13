@@ -1,6 +1,6 @@
 """core ops like torch funcional api"""
-from . import optim, array, blas, comparison, pointwise, creation, random, reduction, other, \
-    tensor, fft_op, spectral, _inner
+from . import array, blas, comparison, pointwise, creation, random, reduction, other, \
+    tensor, _inner, optim
 from .array import *
 from .blas import *
 from .comparison import *
@@ -13,6 +13,7 @@ from .tensor import *
 # from .fft_op import *
 # from .spectral import *
 from ._inner import *
+from .optim import *
 
 __all__ = []
 __all__.extend(_inner.__all__)
@@ -27,3 +28,4 @@ __all__.extend(reduction.__all__)
 # __all__.extend(spectral.__all__)
 __all__.extend(tensor.__all__)
 __all__.extend(other.__all__)
+__all__.extend(optim.__all__)

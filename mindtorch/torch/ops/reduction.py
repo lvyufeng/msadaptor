@@ -35,12 +35,34 @@ def any(input, dim=None, keepdim=False):
     return execute('reduce_any', input, dim, keepdim)
 
 # max
-def max(input, dim=None, keepdim=False):
-    return execute('max_dim', input, dim, keepdim)
+def max(input, dim=None, keepdim=False, *, out=None):
+    if input.device.type == 'cpu':
+        func_name = 'argmax_with_value'
+    else:
+        func_name = 'argmax_ext'
+    if dim is None and not keepdim:
+        return execute('max', input)
+    output, indices = execute(func_name, input, dim, keepdim)
+    if out is None:
+        return output, indices
+    out[0].data = output
+    out[1].data = indices
+    return out
 
 # min
-def min(input, dim=None, keepdim=False):
-    return execute('min_dim', input, dim, keepdim)
+def min(input, dim=None, keepdim=False, *, out=None):
+    if input.device.type == 'cpu':
+        func_name = 'argmin_with_value'
+    else:
+        func_name = 'argmin_ext'
+    if dim is None and not keepdim:
+        return execute('min', input)
+    output, indices = execute(func_name, input, dim, keepdim)
+    if out is None:
+        return output, indices
+    out[0].data = output
+    out[1].data = indices
+    return out
 
 # dist
 

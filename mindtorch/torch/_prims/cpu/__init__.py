@@ -1,9 +1,11 @@
+from mindspore.common.api import _pynative_executor
 from mindspore.ops.auto_generate import gen_ops_prim
 from mindspore.ops.auto_generate.gen_ops_prim import *
 from mindspore._c_expression import pyboost_cast, pyboost_empty, pyboost_zeros, pyboost_ones
 from mindspore.ops.operations.manually_defined.ops_def import Cast, Zeros, Ones
-from mindspore.common.api import _pynative_executor
-from mindspore.ops import FillV2
+from mindspore.ops._primitive_cache import _get_cache_prim
+from mindspore.ops import StopGradient, Primitive, ApplyAdadelta, Adam, ApplyAdamWithAmsgradV2, SGD
+from mindspore.ops import FillV2, UniformReal, Stack
 
 pyboost_list = list(filter(lambda s: s.startswith("pyboost"), dir(gen_ops_prim)))
 pyboost_op_list = [op.replace('pyboost_', '') + '_op' for op in pyboost_list]
@@ -111,3 +113,73 @@ def full_cpu(*args):
     return _pynative_executor.run_op_async(full_op, full_op.name, args)
 
 __all__.append('full_cpu')
+
+stop_gradient_op = StopGradient().set_device('CPU')
+def stop_gradient_cpu(*args):
+    return _pynative_executor.run_op_async(stop_gradient_op, stop_gradient_op.name, args)
+
+__all__.append('stop_gradient_cpu')
+
+
+adadelta_op = ApplyAdadelta().set_device('CPU')
+def raw_adadelta_cpu(param, square_avg, acc_delta, lr, rho, eps, grad):
+    args = (param, square_avg, acc_delta, lr, rho, eps, grad)
+    return _pynative_executor.run_op_async(adadelta_op, adadelta_op.name, args)
+
+adam_op = Adam().set_device('CPU')
+def raw_adam_cpu(param, exp_avg, exp_avg_sq, beta1_power, beta2_power, lr, beta1, beta2, epsilon, grad):
+    # var, m, v, beta1_power, beta2_power, lr, beta1, beta2, epsilon, grad
+    args = (param, exp_avg, exp_avg_sq, beta1_power, beta2_power, lr, beta1, beta2, epsilon, grad)
+    return _pynative_executor.run_op_async(adam_op, adam_op.name, args)
+
+adam_amsgrad_op = ApplyAdamWithAmsgradV2().set_device('CPU')
+def raw_adam_amsgrad_cpu(param, exp_avg, exp_avg_sq, max_exp_avg_sq, beta1_power, beta2_power, lr, beta1, beta2, epsilon, grad):
+    # var, m, v, beta1_power, beta2_power, lr, beta1, beta2, epsilon, grad
+    args = (param, exp_avg, exp_avg_sq, max_exp_avg_sq,
+                         beta1_power, beta2_power, lr, beta1, beta2, epsilon, grad)
+    return _pynative_executor.run_op_async(adam_amsgrad_op, adam_amsgrad_op.name, args)
+
+
+def raw_sgd_cpu(param, grad, lr, dampening, weight_decay, nesterov, accum, momentum, stat):
+    sgd_op = _get_cache_prim(SGD)(dampening, weight_decay, nesterov).set_device('CPU')
+    args = (param, grad, lr, accum, momentum, stat)
+    return _pynative_executor.run_op_async(sgd_op, sgd_op.name, args)
+
+__all__.extend(
+    [
+        'raw_adadelta_cpu',
+        'raw_adam_cpu',
+        'raw_adam_amsgrad_cpu',
+        'raw_sgd_cpu'
+    ]
+)
+
+uniform_real_op = UniformReal().set_device('CPU')
+def uniform_real_cpu(*args):
+    return _pynative_executor.run_op_async(uniform_real_op, uniform_real_op.name, args)
+
+__all__.append('uniform_real_cpu')
+
+def stack_cpu(tensors, dim):
+    stack_op = _get_cache_prim(Stack)(dim).set_device('CPU')
+    return _pynative_executor.run_op_async(stack_op, stack_op.name, tensors)
+
+__all__.append('stack_cpu')
+
+argmax_with_value_op = ArgMaxWithValue().set_device('CPU')
+def argmax_with_value_cpu(*args):
+    return pyboost_argmax_with_value(argmax_with_value_op, args)
+
+__all__.append('argmax_with_value_cpu')
+
+log_softmax_op = LogSoftmax().set_device('CPU')
+def log_softmax_cpu(*args):
+    return pyboost_log_softmax(log_softmax_op, args)
+
+__all__.append('log_softmax_cpu')
+
+strided_slice_op = StridedSlice().set_device('CPU')
+def strided_slice_cpu(*args):
+    return _pynative_executor.run_op_async(strided_slice_op, strided_slice_op.name, args)
+
+__all__.append('strided_slice_cpu')

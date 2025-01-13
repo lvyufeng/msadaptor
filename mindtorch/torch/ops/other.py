@@ -1,15 +1,14 @@
 """other op"""
-
 import copy
 import numpy as np
 import mindspore
-from mindspore import ops
-from mindspore.common.initializer import initializer
-from mindspore.ops._primitive_cache import _get_cache_prim
+from mindspore.ops.auto_generate.gen_arg_handler import dtype_to_type_id
 
-from ..configs import use_pyboost, ON_ORANGE_PI
 from .reduction import any
 from .comparison import eq
+
+import torch
+from torch.executor import execute
 
 # atleast_2d
 
@@ -19,10 +18,7 @@ from .comparison import eq
 
 # bincount
 def bincount(input, weights=None, minlength=0):
-    if use_pyboost() and has_bincount:
-        return mindspore.mint.bincount(input, weights, minlength)
-    return ops.bincount(input, weights, minlength)
-
+    return execute('bincount_ext', input, weights, minlength)
 
 # block_diag
 
@@ -30,41 +26,13 @@ def bincount(input, weights=None, minlength=0):
 # broadcast_tensors
 def broadcast_tensors(*tensors):
     target_shape = broadcast_shapes(*[t.shape for t in tensors])
-
     broadcasted_tensors = [t.broadcast_to(target_shape) for t in tensors]
-
     return broadcasted_tensors
 
 
-def manual_expand(tensor, shape):
-    assert (
-        len(shape) >= tensor.dim()
-    ), "Target shape must have equal or more dimensions than the tensor."
-
-    for _ in range(len(shape) - tensor.dim()):
-        tensor = tensor.unsqueeze(0)
-
-    repeats = []
-    for i, (tensor_dim, target_dim) in enumerate(zip(tensor.shape, shape)):
-        if target_dim == -1:
-            repeats.append(1)
-        else:
-            repeats.append(target_dim // tensor_dim if tensor_dim == 1 else 1)
-
-    return tensor.tile(tuple(repeats))
-
-
 # broadcast_to
-has_broadcast_to = hasattr(mindspore.mint, "broadcast_to")
-
-
 def broadcast_to(input, shape):
-    if ON_ORANGE_PI and not use_pyboost():
-        # return input.expand(mindspore.tensor(shape))
-        return manual_expand(input, shape)
-    if use_pyboost() and has_broadcast_to:
-        return mindspore.mint.broadcast_to(input, shape)
-    return ops.broadcast_to(input, shape)
+    return execute('broadcast_to', input, shape)
 
 
 # broadcast_shapes
@@ -89,30 +57,20 @@ def broadcast_shapes(*shapes):
 
     return tuple(reversed(result_shape))
 
-
 # bucketize
 
 # cartesian_prod
 
 
 # cdist
-has_cdist = hasattr(mindspore.mint, "cdist")
-
-
 def cdist(x1, x2, p=2.0, compute_mode="use_mm_for_euclid_dist_if_necessary"):
-    if use_pyboost() and has_cdist:
-        return mindspore.mint.cdist(x1, x2, p, compute_mode)
-    return ops.cdist(x1, x2, float(p))
-
+    return execute('cdist', x1, x2, p)
 
 # clone
-has_clone = hasattr(mindspore.mint, "clone")
-
-
 def clone(input):
-    if use_pyboost() and has_clone:
-        return mindspore.mint.clone(input)
-    return copy.deepcopy(input)
+    copy_tensor = copy.deepcopy(input)
+    copy_tensor.data = execute('clone', input)
+    return copy_tensor
 
 
 # combinations
@@ -133,22 +91,13 @@ def clone(input):
 # cumprod
 
 # cumsum
-has_cumsum = hasattr(mindspore.mint, "cumsum")
-
-
 def cumsum(input, dim, dtype=None):
-    if (
-        use_pyboost() and has_cumsum and not ON_ORANGE_PI
-    ):  # since cann8.0 community remove aclnn cumsum
-        return mindspore.mint.cumsum(input, dim, dtype)
-    if input.dtype == mindspore.bool_:
-        input = input.to(mindspore.int32)
-    return ops.cumsum(input, dim, dtype)
-
+    return execute('cumsum_ext', input, dim,
+                   dtype if dtype is None else dtype_to_type_id('CumsumExt', 'dtype', dtype))
 
 # diag
 def diag(input):
-    return ops.diag(input)
+    return execute('diag', input)
 
 
 # diag_embed
@@ -158,6 +107,8 @@ def diag(input):
 
 
 # diagonal
+def diagonal(input, offset=0, dim1=0, dim2=1):
+    return execute('diagonal', input, offset, dim1, dim2)
 
 # diff
 
@@ -259,7 +210,7 @@ def sumproduct_pair(left_, right_, sum_dims_, keep_dim_):
     """
     assert left_.ndim == right_.ndim, "number of dimensions must match"
     if len(sum_dims_) == 0:
-        return ops.mul(left_, right_)
+        return torch.mul(left_, right_)
 
     dim = left_.ndim
     sum_dims = dim_list_to_bitset(sum_dims_, dim)
@@ -279,9 +230,9 @@ def sumproduct_pair(left_, right_, sum_dims_, keep_dim_):
                 ), "non-broadcast dimensions must match"
                 sum_size *= left.shape[i]
             elif sl:
-                left = ops.sum(left, i, keepdim=True)
+                left = torch.sum(left, i, keepdim=True)
             elif sr:
-                right = ops.sum(right, i, keepdim=True)
+                right = torch.sum(right, i, keepdim=True)
         elif sl and sr:
             assert (
                 left.shape[i] == right.shape[i]
@@ -330,10 +281,10 @@ def sumproduct_pair(left_, right_, sum_dims_, keep_dim_):
         opermutation[it] = i
         i += 1
 
-    left = ops.transpose(left, tuple(lpermutation)).reshape(lro_size, lo_size, sum_size)
-    right = ops.transpose(right, tuple(rpermutation)).view(lro_size, sum_size, ro_size)
+    left = torch.permute(left, tuple(lpermutation)).reshape(lro_size, lo_size, sum_size)
+    right = torch.permute(right, tuple(rpermutation)).view(lro_size, sum_size, ro_size)
 
-    result = ops.bmm(left, right)
+    result = torch.bmm(left, right)
     result = result.view(*out_size).transpose(*opermutation)
 
     if not keep_dim_:
@@ -347,8 +298,6 @@ def sumproduct_pair(left_, right_, sum_dims_, keep_dim_):
 
 
 ELLIPSIS = 52
-
-has_einsum = hasattr(mindspore.mint, "einsum")
 
 
 def einsum(equation, *operands):
@@ -370,8 +319,6 @@ def einsum(equation, *operands):
         AssertionError: If more operands are provided than specified in the equation.
         RuntimeError: If operands do not broadcast with remapped shapes [original->remapped].
     """
-    if use_pyboost() and has_einsum:
-        return mindspore.mint.einsum(equation, *operands)
     assert operands, "einsum(): must provide at least one operand"
     if isinstance(operands[0], tuple):
         operands = operands[0]
@@ -526,14 +473,14 @@ def einsum(equation, *operands):
                 # Add missing dimensions covered by the ellipsis
                 num_missing_dim = ell_num_dim - (len(original_sizes) - len(labels) + 1)
                 for k in range(num_missing_dim):
-                    operand = ops.unsqueeze(operand, j)
+                    operand = torch.unsqueeze(operand, j)
                 for k in range(ell_num_dim):
                     perm_shape[ell_index + k] = j
                     j += 1
             elif label_dim[label] != -1:
                 dim = label_dim[label]
-                operand = ops.diagonal(operand, offset=0, dim1=dim, dim2=j)
-                operand = ops.moveaxis(operand, -1, dim)
+                operand = torch.diagonal(operand, offset=0, dim1=dim, dim2=j)
+                operand = torch.swapaxes(operand, -1, dim)
             else:
                 label_dim[label] = j
                 perm_shape[label_perm_index[label]] = j
@@ -542,11 +489,11 @@ def einsum(equation, *operands):
         # Add dimensions for missing labels
         for idx, index in enumerate(perm_shape):
             if index == -1:
-                operand = ops.unsqueeze(operand, -1)
+                operand = torch.unsqueeze(operand, -1)
                 perm_shape[idx] = j
                 j += 1
 
-        operand = ops.transpose(operand, tuple(perm_shape))
+        operand = torch.permute(operand, tuple(perm_shape))
         permuted_operands.append(operand)
 
     # Check if operands broadcast and keep track of last operand with
@@ -572,17 +519,17 @@ def einsum(equation, *operands):
         out_shape = [-1] * out_size
         for i in range(out_size):
             out_shape[i] = permuted_operands[dim_last_op[i]].shape[i]
-        return ops.zeros(out_shape)
+        return torch.zeros(out_shape)
 
     # Sum out or squeeze dimensions that are size 1 for all later operands
     dim = out_size
     for i in range(dim, perm_index):
         if dim_last_op[i] == 0:
             if result.shape[dim] == 1:
-                result = ops.squeeze(result, dim)
+                result = torch.squeeze(result, dim)
                 dim -= 1
             else:
-                result = ops.sum(result, dim)
+                result = torch.sum(result, dim)
                 dim -= 1
         dim += 1
 
@@ -594,12 +541,12 @@ def einsum(equation, *operands):
         dim = out_size
         for j in range(dim, perm_index):
             if dim_last_op[j] < i:
-                operand = ops.squeeze(operand, dim)
+                operand = torch.squeeze(operand, dim)
                 dim -= 1
             elif dim_last_op[j] == i:
                 if result.shape[dim] == 1:
-                    operand = ops.sum(operand, dim)
-                    result = ops.squeeze(result, dim)
+                    operand = torch.sum(operand, dim)
+                    result = torch.squeeze(result, dim)
                     dim -= 1
                 else:
                     sum_dims.append(dim)
@@ -614,27 +561,18 @@ def einsum(equation, *operands):
 
 
 # flatten
-has_flatten = hasattr(mindspore.mint, "flatten")
-
-
 def flatten(input, start_dim=1, end_dim=-1):
-    """Flattens the input. Does not affect the batch size."""
-    if use_pyboost() and has_flatten:
-        return mindspore.mint.flatten(input, start_dim, end_dim)
-    if end_dim < 0:
-        end_dim = input.ndim + end_dim
-    new_shape = input.shape[:start_dim] + (-1,) + input.shape[end_dim + 1 :]
-    return ops.reshape(input, new_shape)
+    if input.device.type == 'cpu':
+        if end_dim < 0:
+            end_dim = input.ndim + end_dim
+        new_shape = input.shape[:start_dim] + (-1,) + input.shape[end_dim + 1:]
+        return input.reshape(new_shape)
+    return execute('flatten_ext', input, start_dim, end_dim)
 
 
 # flip
-has_flip = hasattr(mindspore.mint, "flip")
-
-
 def flip(input, dims):
-    if use_pyboost() and has_flip:
-        return mindspore.mint.flip(input, dims)
-    return ops.flip(input, dims)
+    return execute('reverse_v2', input, dims)
 
 
 # fliplr
@@ -662,19 +600,10 @@ def flip(input, dims):
 
 
 # meshgrid
-has_meshgrid = hasattr(mindspore.mint, "meshgrid")
-
-
 def meshgrid(*tensors, indexing=None):
-    if use_pyboost() and has_meshgrid:
-        return mindspore.mint.meshgrid(*tensors, indexing)
-    if isinstance(tensors[0], (list, tuple)):
-        tensors = tensors[0]
-    if len(tensors) == 1:
-        return tensors
     if indexing is None:
-        indexing = "ij"
-    return ops.meshgrid(*tensors, indexing=indexing)
+        indexing = 'ij'
+    return execute('meshgrid', tensors, indexing)
 
 
 # lcm
@@ -689,75 +618,44 @@ def meshgrid(*tensors, indexing=None):
 
 
 # repeat_interleave
-has_repeat_interleave = hasattr(mindspore.mint, "repeat_interleave")
-
-
 def repeat_interleave(input, repeats, dim=None):
-    if use_pyboost() and has_repeat_interleave:
-        return mindspore.mint.repeat_interleave(input, repeats, dim)
-    if input.dtype == mindspore.bool_:
-        input = input.int()
-        return input.repeat(repeats, dim).bool()
-    return input.repeat(repeats, dim)
+    if isinstance(repeats, int):
+        return execute('repeat_interleave_int', input, repeats, dim, None)
+    return execute('repeat_interleave_tensor', input, repeats, dim, None)
 
 
 # roll
-DEVICE_TARGET = mindspore.get_context("device_target")
-has_roll = hasattr(mindspore.mint, "roll")
-
-
 def roll(input, shifts, dims=None):
-    if use_pyboost() and has_roll:
-        return mindspore.mint.roll(input, shifts, dims)
-    if DEVICE_TARGET == "CPU":
-        return mindspore.numpy.roll(input, shifts, dims)
-    return ops.roll(input, shifts, dims)
+    return execute('roll', input, shifts, dims)
 
 
 # searchsorted
-has_searchsorted = hasattr(mindspore.mint, "searchsorted")
-
-
 def searchsorted(
     sorted_sequence, values, *, out_int32=False, right=False, side=None, sorter=None
 ):
-    if use_pyboost() and has_searchsorted:
-        return mindspore.mint.searchsorted(
-            sorted_sequence,
-            values,
-            out_int32=out_int32,
-            right=right,
-            side=side,
-            sorter=sorter,
-        )
-    return ops.searchsorted(sorted_sequence, values, out_int32=out_int32, right=right)
-
+    dtype = torch.int32 if bool(out_int32) else torch.int64
+    if (side == "left" and right is True):
+        raise ValueError(f"For 'searchsorted', side and right can't be set to opposites,"
+                         f"got side of left while right was True.")
+    if side == "right":
+        right = True
+    return execute('search_sorted', sorted_sequence, values, sorter,
+                   dtype_to_type_id('SearchSorted', 'dtype', dtype), right)
 
 # tensordot
 
 # trace
 
 # tril
-has_tril = hasattr(mindspore.mint, "tril")
-
-
 def tril(input, diagonal=0):
-    if use_pyboost() and has_tril:
-        return mindspore.mint.tril(input, diagonal)
-    return ops.tril(input, diagonal)
+    return execute('tril_ext', input, diagonal)
 
 
 # tril_indices
 
 # triu
-has_triu = hasattr(mindspore.mint, "triu")
-
-
 def triu(input, diagonal=0):
-    if use_pyboost() and has_triu:
-        return mindspore.mint.triu(input, diagonal)
-    return ops.triu(input, diagonal)
-
+    return execute('triu', input, diagonal)
 
 # triu_indices
 
@@ -765,8 +663,7 @@ def triu(input, diagonal=0):
 # unflatten
 def unflatten(x, dim, sizes):
     new_shape = x.shape[:dim] + sizes
-    return ops.reshape(x, new_shape)
-
+    return x.reshape(new_shape)
 
 # vander
 
@@ -783,9 +680,7 @@ def unflatten(x, dim, sizes):
 
 
 def masked_fill(input, mask, value):
-    masked_fill_ = _get_cache_prim(ops.MaskedFill)()
-    return masked_fill_(input, mask, mindspore.tensor(value, dtype=input.dtype))
-
+    return execute('masked_fill', input, mask, value)
 
 def finfo(dtype):
     return np.finfo(mindspore.dtype_to_nptype(dtype))
@@ -812,37 +707,8 @@ def contains(self, key):
     return bool(res)
 
 
-def initialize(self, init_method):
-    r"""
-    Initializes the object with the given initialization method.
-
-    Args:
-        self (object): The instance of the class.
-        init_method (str): The method used for initialization.
-            This parameter determines how the data is initialized.
-            Valid values for `init_method` are:
-                - "random": Initializes the data with random values.
-                - "zeros": Initializes the data with zeros.
-                - "ones": Initializes the data with ones.
-            Default value is "random".
-
-    Returns:
-        None. This function does not return any value.
-
-    Raises:
-        None.
-
-    Note:
-        This function sets the data of the object using the specified `init_method` and the object's shape and data type.
-    """
-    self.assign_value(initializer(init_method, self.shape, self.dtype))
-
-
-_stop_gradient = ops.StopGradient()
-
-
 def stop_gradient(input):
-    return _stop_gradient(input)
+    return execute('stop_gradient', input)
 
 
 def _get_unfold_indices(input_shape, dimension, size, step):
@@ -857,10 +723,9 @@ def _get_unfold_indices(input_shape, dimension, size, step):
 
 def unfold(input, dimension, size, step):
     _indices, _dimension = _get_unfold_indices(input.shape, dimension, size, step)
-    indices = mindspore.Tensor(_indices).astype(mindspore.int32)
-    output = ops.gather(input, indices, axis=_dimension)
-    output = ops.moveaxis(output, _dimension + 1, -1)
-
+    indices = torch.Tensor(_indices)
+    output = torch.gather(input, _dimension, indices)
+    output = torch.swapaxes(output, _dimension + 1, -1)
     return output
 
 
@@ -874,6 +739,7 @@ __all__ = [
     "contains",
     "cumsum",
     "diag",
+    "diagonal",
     "dim_list_to_bitset",
     "einsum",
     "einsum_label_to_index",
@@ -881,8 +747,6 @@ __all__ = [
     "flatten",
     "flip",
     "iinfo",
-    "initialize",
-    "manual_expand",
     "masked_fill",
     "maybe_wrap_dim",
     "meshgrid",

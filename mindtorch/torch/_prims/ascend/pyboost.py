@@ -122,3 +122,45 @@ def softmax_npu(*args):
     return pyboost_softmax(softmax_op, args)
 
 __all__.append('softmax_npu')
+
+broadcast_to_op = Primitive('BroadcastTo').set_device('Ascend')
+def broadcast_to_npu(*args):
+    return pyboost_broadcast_to(broadcast_to_op, args)
+
+__all__.append('broadcast_to_npu')
+
+triu_op = Triu().set_device('Ascend')
+def triu_npu(*args):
+    return pyboost_triu(triu_op, args)
+
+__all__.append('triu_npu')
+
+tril_ext_op = TrilExt().set_device('Ascend')
+def tril_ext_npu(*args):
+    return pyboost_tril_ext(triu_op, args)
+
+__all__.append('tril_ext_npu')
+
+search_sorted_op = SearchSorted().set_device('Ascend')
+def search_sorted_npu(*args):
+    return pyboost_searchsorted(search_sorted_op, args)
+
+__all__.append('search_sorted_npu')
+
+roll_op = Primitive('Roll').set_device('Ascend')
+def roll_npu(*args):
+    return pyboost_roll(roll_op, args)
+
+__all__.append('roll_npu')
+
+meshgrid_op = Meshgrid().set_device('Ascend')
+def meshgrid_npu(*args):
+    return pyboost_meshgrid(meshgrid_op, args)
+
+__all__.append('meshgrid_npu')
+
+reverse_v2_op = Primitive('ReverseV2').set_device('Ascend')
+def reverse_v2_npu(*args):
+    return pyboost_reverse_v2(reverse_v2_op, args)
+
+__all__.append('reverse_v2_npu')

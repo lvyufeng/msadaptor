@@ -1,3 +1,5 @@
+from . import _nn
+
 def _jit_set_profiling_executor(mode):
     pass
 

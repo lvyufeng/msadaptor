@@ -1,9 +1,11 @@
 """creation ops"""
-from .._bind import get_default_dtype, get_default_device
+import numpy as np
+import mindspore
 from mindspore.ops.auto_generate.gen_arg_handler import dtype_to_type_id
 
 import torch
 from torch.executor import execute
+from .._bind import get_default_dtype, get_default_device
 
 def as_strided(self, size, stride, storage_offset=None):
     return execute('as_strided', self, size, stride, storage_offset)
@@ -13,6 +15,12 @@ def from_numpy(ndarray):
     return torch.Tensor(ndarray)
 
 # frombuffer
+def frombuffer(buffer, *, dtype, count=-1, offset=0, requires_grad=False):
+    arr = np.frombuffer(buffer=buffer, dtype=mindspore.dtype_to_nptype(dtype), count=count, offset=offset)
+    tensor = torch.Tensor(arr)
+    tensor.requires_grad_(requires_grad)
+    return tensor
+
 
 # zeros
 def zeros(*size, out=None, dtype=None, layout=None, device=None, requires_grad=False):
@@ -23,7 +31,7 @@ def zeros(*size, out=None, dtype=None, layout=None, device=None, requires_grad=F
     if isinstance(size[0], (tuple, list)):
         size = size[0]
     output = execute('zeros', size, dtype_to_type_id('Zeros', 'type', dtype),
-                     device=device, requires_grad=requires_grad, is_leaf=True)
+                     device=device, requires_grad=requires_grad, user_created=True)
     if out is None:
         return output
     out.data = output
@@ -36,9 +44,9 @@ def zeros_like(input, *, dtype=None, layout=None, device=None, requires_grad=Fal
     if device is None:
         device = input.device
     if device.type == 'cpu':
-        return execute('zeros_like', input, device=device, requires_grad=requires_grad, is_leaf=True)
+        return execute('zeros_like', input, device=device, requires_grad=requires_grad, user_created=True)
     return execute('zeros_like_ext', input, dtype_to_type_id('ZerosLikeExt', 'dtype', dtype),
-                   device=device, requires_grad=requires_grad, is_leaf=True)
+                   device=device, requires_grad=requires_grad, user_created=True)
 
 # ones
 def ones(*size, out=None, dtype=None, layout=None, device=None, requires_grad=False):
@@ -49,7 +57,7 @@ def ones(*size, out=None, dtype=None, layout=None, device=None, requires_grad=Fa
     if isinstance(size[0], (tuple, list)):
         size = size[0]
     output = execute('ones', size, dtype_to_type_id('Ones', 'type', dtype),
-                     device=device, requires_grad=requires_grad, is_leaf=True)
+                     device=device, requires_grad=requires_grad, user_created=True)
     if out is None:
         return output
     out.data = output
@@ -62,9 +70,9 @@ def ones_like(input, *, dtype=None, layout=None, device=None, requires_grad=Fals
     if device is None:
         device = input.device
     if device.type == 'cpu':
-        return execute('ones_like', input, device=device, requires_grad=requires_grad, is_leaf=True)
+        return execute('ones_like', input, device=device, requires_grad=requires_grad, user_created=True)
     return execute('ones_like_ext', input, dtype_to_type_id('OnesLikeExt', 'dtype', dtype),
-                   device=device, requires_grad=requires_grad, is_leaf=True)
+                   device=device, requires_grad=requires_grad, user_created=True)
 
 # arange
 def arange(start=0, end=None, step=1, *, out=None, dtype=None, layout=None, device=None, requires_grad=False):
@@ -76,10 +84,10 @@ def arange(start=0, end=None, step=1, *, out=None, dtype=None, layout=None, devi
         device = get_default_device()
     if device.type == 'cpu':
         output = execute('range', start, end, step, 1000000,
-                         device=device, requires_grad=requires_grad, is_leaf=True)
+                         device=device, requires_grad=requires_grad, user_created=True)
     else:
         output = execute('arange', start, end, step, dtype_to_type_id('Arange', 'dtype', dtype),
-                         device=device, requires_grad=requires_grad, is_leaf=True)
+                         device=device, requires_grad=requires_grad, user_created=True)
     if out is None:
         return output
     out.data = output
@@ -94,7 +102,7 @@ def range(start=0, end=None, step=1, *, out=None, dtype=None, layout=None, devic
     if device is None:
         device = get_default_device()
     output = execute('range', start, end + 1, step, 1000000,
-                     device=device, requires_grad=requires_grad, is_leaf=True)
+                     device=device, requires_grad=requires_grad, user_created=True)
     if out is None:
         return output
     out.data = output
@@ -110,10 +118,10 @@ def linspace(start, end, steps, *, out=None, dtype=None, layout=None, device=Non
         start = torch.tensor(start, device=device, dtype=dtype)
         end = torch.tensor(end, device=device, dtype=dtype)
         output = execute('linspace', start, end, steps,
-                         device=device, requires_grad=requires_grad, is_leaf=True)
+                         device=device, requires_grad=requires_grad, user_created=True)
     else:
         output = execute('lin_space_ext', start, end, steps, dtype_to_type_id('LinSpaceExt', 'dtype', dtype),
-                         device=device, requires_grad=requires_grad, is_leaf=True)
+                         device=device, requires_grad=requires_grad, user_created=True)
     if out is None:
         return output
     out.data = output
@@ -128,7 +136,7 @@ def eye(n, m=None, *, out=None, dtype=None, layout=None, device=None, requires_g
     if dtype is None:
         dtype = get_default_dtype()
     output = execute('eye', n, m, dtype_to_type_id('Eye', 'dtype', dtype),
-                     device=device, requires_grad=requires_grad, is_leaf=True)
+                     device=device, requires_grad=requires_grad, user_created=True)
     if out is None:
         return output
     out.data = output
@@ -140,7 +148,10 @@ def empty(*size, out=None, dtype=None, layout=None, device=None, requires_grad=F
         dtype = get_default_dtype()
     if device is None:
         device = get_default_device()
-    output = execute('empty', size, dtype, device=device, requires_grad=requires_grad, is_leaf=True)
+    if isinstance(size[0], tuple):
+        size = size[0]
+
+    output = execute('empty', size, dtype, device=device, requires_grad=requires_grad, user_created=True)
     if out is None:
         return output
     out.data = output
@@ -162,14 +173,14 @@ def full(size, fill_value, *, out=None, dtype=None, layout=None, device=None, re
     if device.type == 'cpu':
         if not isinstance(fill_value, torch.Tensor):
             fill_value = torch.tensor(fill_value, dtype=dtype, device=device)
-        output = execute('full', size, fill_value, device=device, requires_grad=requires_grad, is_leaf=True)
+        output = execute('full', size, fill_value, device=device, requires_grad=requires_grad, user_created=True)
     else:
         if isinstance(fill_value, torch.Tensor):
             output = execute('fill_tensor', size, fill_value, dtype_to_type_id('FillScalar', 'dtype', dtype),
-                             device=device, requires_grad=requires_grad, is_leaf=True)
+                             device=device, requires_grad=requires_grad, user_created=True)
         else:
             output = execute('fill_scalar', size, fill_value, dtype_to_type_id('FillTensor', 'dtype', dtype),
-                             device=device, requires_grad=requires_grad, is_leaf=True)
+                             device=device, requires_grad=requires_grad, user_created=True)
     if out is None:
         return output
     out.data = output
@@ -203,7 +214,7 @@ def polar(abs, angle, *, out=None):
 # heaviside
 
 __all__ = ['arange', 'as_strided', 'empty', 'empty_like',
-           'eye', 'from_numpy', 'full', 'full_like',
+           'eye', 'from_numpy', 'frombuffer', 'full', 'full_like',
            'linspace', 'ones', 'ones_like',
            'polar', 'range', 'zeros', 'zeros_like'
 ]

@@ -24,7 +24,7 @@ from typing import (
 )
 from typing_extensions import ParamSpec, Self, TypeAlias
 
-import mindspore
+import torch
 from torch.nn import Parameter
 from .. import ops
 from ..utils import hooks
@@ -34,7 +34,7 @@ from .._bind import get_default_dtype
 Args: TypeAlias = Tuple[Any, ...]
 Kwargs: TypeAlias = Dict[str, Any]
 StateDict: TypeAlias = Dict[str, Any]
-TensorListList: TypeAlias = List[List[mindspore.Tensor]]
+TensorListList: TypeAlias = List[List[torch.Tensor]]
 
 
 GlobalOptimizerPreHook: TypeAlias = Callable[
@@ -49,7 +49,7 @@ __all__ = [
 ]
 _global_optimizer_pre_hooks: Dict[int, GlobalOptimizerPreHook] = OrderedDict()
 _global_optimizer_post_hooks: Dict[int, GlobalOptimizerPostHook] = OrderedDict()
-_foreach_supported_types = [mindspore.Tensor, Parameter]
+_foreach_supported_types = [torch.Tensor, Parameter]
 
 
 class _RequiredParameter:
@@ -64,7 +64,7 @@ required = _RequiredParameter()
 
 def _get_value(x):
     # item is significantly faster than a cpu tensor in eager mode
-    return x.item() if isinstance(x, mindspore.Tensor) else x
+    return x.item() if isinstance(x, torch.Tensor) else x
 
 
 def _stack_if_compiling(x):
@@ -167,7 +167,7 @@ def register_optimizer_step_post_hook(hook: GlobalOptimizerPostHook) -> Removabl
     return handle
 
 
-ParamsT: TypeAlias = Union[Iterable[mindspore.Tensor], Iterable[Dict[str, Any]]]
+ParamsT: TypeAlias = Union[Iterable[torch.Tensor], Iterable[Dict[str, Any]]]
 
 _P = ParamSpec("_P")
 R = TypeVar("R")
@@ -183,7 +183,7 @@ class Optimizer:
         satisfy those properties are sets and iterators over values of dictionaries.
 
     Args:
-        params (iterable): an iterable of :class:`mindspore.Tensor` s or
+        params (iterable): an iterable of :class:`torch.Tensor` s or
             :class:`dict` s. Specifies what Tensors should be optimized.
         defaults: (dict): a dict containing default values of optimization
             options (used when a parameter group doesn't specify them).
@@ -208,13 +208,13 @@ class Optimizer:
         self._optimizer_load_state_dict_pre_hooks = OrderedDict()
         self._optimizer_load_state_dict_post_hooks = OrderedDict()
 
-        if isinstance(params, mindspore.Tensor):
+        if isinstance(params, torch.Tensor):
             raise TypeError(
                 "params argument given to the optimizer should be "
                 "an iterable of Tensors or dicts, but got " + type(params)
             )
 
-        self.state: DefaultDict[mindspore.Tensor, Any] = defaultdict(dict)
+        self.state: DefaultDict[torch.Tensor, Any] = defaultdict(dict)
         self.param_groups: List[Dict[str, Any]] = []
 
         param_groups = list(params)
@@ -460,7 +460,7 @@ class Optimizer:
         param_groups = [pack_group(g) for g in self.param_groups]
         # Remap state to use order indices as keys
         packed_state = {
-            (param_mappings[id(k)] if isinstance(k, mindspore.Tensor) else k): v
+            (param_mappings[id(k)] if isinstance(k, torch.Tensor) else k): v
             for k, v in self.state.items()
         }
 
@@ -477,12 +477,12 @@ class Optimizer:
 
     @staticmethod
     def _process_value_according_to_param_policy(
-        param: mindspore.Tensor,
-        value: mindspore.Tensor,
+        param: torch.Tensor,
+        value: torch.Tensor,
         param_id: int,
         param_groups: List[Dict[Any, Any]],
         key: Hashable = None,
-    ) -> mindspore.Tensor:
+    ) -> torch.Tensor:
         # Floating-point types are a bit special here. They are the only ones
         # that are assumed to always match the type of params.
         # Make sure state['step'] is not casted https://github.com/pytorch/pytorch/issues/74424
@@ -622,7 +622,7 @@ class Optimizer:
 
         def _cast(param, value, param_id=None, param_groups=None, key=None):
             r"""Make a deep copy of value, casting all tensors to device of param."""
-            if isinstance(value, mindspore.Tensor):
+            if isinstance(value, torch.Tensor):
                 return Optimizer._process_value_according_to_param_policy(
                     param, value, param_id, param_groups, key
                 )
@@ -641,7 +641,7 @@ class Optimizer:
         # Copy state assigned to params (and cast tensors to appropriate types).
         # State that is not assigned to params is copied as is (needed for
         # backward compatibility).
-        state: DefaultDict[mindspore.Tensor, Dict[Any, Any]] = defaultdict(dict)
+        state: DefaultDict[torch.Tensor, Dict[Any, Any]] = defaultdict(dict)
         for k, v in state_dict["state"].items():
             if k in id_map:
                 param = id_map[k]
@@ -692,7 +692,7 @@ class Optimizer:
             raise TypeError(f"param_group must be a dict, but got {type(param_group)}")
 
         params = param_group["params"]
-        if isinstance(params, mindspore.Tensor):
+        if isinstance(params, torch.Tensor):
             param_group["params"] = [params]
         elif isinstance(params, set):
             raise TypeError(
@@ -703,7 +703,7 @@ class Optimizer:
             param_group["params"] = list(params)
 
         for param in param_group["params"]:
-            if not isinstance(param, mindspore.Tensor):
+            if not isinstance(param, torch.Tensor):
                 raise TypeError(
                     "optimizer can only optimize Tensors, "
                     "but one of the params is " + type(param)
@@ -725,7 +725,7 @@ class Optimizer:
                 stacklevel=3,
             )
 
-        param_set: Set[mindspore.Tensor] = set()
+        param_set: Set[torch.Tensor] = set()
         for group in self.param_groups:
             param_set.update(set(group["params"]))
 

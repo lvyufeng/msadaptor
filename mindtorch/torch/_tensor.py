@@ -11,21 +11,46 @@ from mindspore.common.api import _pynative_executor
 from mindspore._c_expression import typing
 
 import torch
-from torch.dispatcher import dispatcher, device_map
+from torch.dispatcher import device_map
 from .types import device as device_
 
 grad_ = GradOperation(False, True, True)
 
-class Tensor:
+kMaxInt8 = 2 ** 7 - 1
+kMaxInt16 = 2 ** 15 - 1
+kMaxInt32 = 2 ** 31 - 1
+kMaxInt64 = 2 ** 63 - 1
+kMaxUint8 = 2 ** 8 - 1
+kMaxUint16 = 2 ** 16 - 1
+kMaxUint32 = 2 ** 32 - 1
+kMaxUint64 = 2 ** 64 - 1
+kMantissaFloat16 = 2 ** 11
+kMantissaFloat32 = 2 ** 24
+kMantissaFloat64 = 2 ** 53
+
+
+class TensorMeta(type):
+    def __instancecheck__(self, instance):
+        if self == Tensor and type(instance) == torch.nn.Parameter:
+            return True
+        dtype = getattr(instance, 'dtype', None)
+        if dtype is not None and dtype in dtype_class_map:
+            return self == dtype_class_map[instance.dtype]
+        return super().__instancecheck__(instance)
+
+class Tensor(metaclass=TensorMeta):
     tensor = None
     stub = None
-    _requires_grad = False
     grad = None
     fn = None
-    is_leaf = False
+
+    _user_created = False
+    _requires_grad = False
     _retain_grad = False
 
     def __init__(self, *input, device=None, dtype=None): # pylint: disable=super-init-not-called
+        if hasattr(self, '_is_param') and self._is_param:
+            return
         if device is None:
             device = device_('cpu')
         self.device = device
@@ -34,22 +59,19 @@ class Tensor:
             if dtype is None:
                 dtype = mindspore.float32
             self.tensor = MSTensor(shape=input, dtype=dtype)
-            self.is_leaf = True
+            self._user_created = True
         elif isinstance(input[0], TensorNode):
             self.stub = input[0]
         elif isinstance(input[0], MSTensor):
             self.tensor = input[0]
         elif isinstance(input[0], np.ndarray):
             self.tensor = MSTensor(input[0])
-            self.is_leaf = True
+            self._user_created = True
         elif isinstance(input[0], Tensor):
             self.tensor = input[0].tensor
             self.stub = input[0].stub
-            self.requires_grad_(input[0].requires_grad)
-            self.is_leaf = input[0].is_leaf
         else:
             raise ValueError(f'not support data type {type(input[0])}')
-        self.__class__ = dtype_class_map[self.dtype]
 
     @staticmethod
     def _make_subclass(cls, tensor, requires_grad=None):
@@ -73,6 +95,11 @@ class Tensor:
         # Initialize the core structure of the tensor
         Tensor.__init__(subclass_instance, tensor, device=tensor.device)
 
+
+        if cls == torch.nn.Parameter:
+            subclass_instance._is_param = True
+            subclass_instance._user_created = True
+
         # Set requires_grad if specified; otherwise, inherit from the base tensor
         if requires_grad is not None:
             subclass_instance.requires_grad_(requires_grad)
@@ -93,15 +120,10 @@ class Tensor:
 
     @data.setter
     def data(self, other):
-        self.stub = None
-        self.tensor = None
         if isinstance(other, Tensor):
             self.stub = other.stub
             self.tensor = other.tensor
-        elif isinstance(other, TensorNode):
-            self.stub = other
-        elif isinstance(other, MSTensor):
-            self.tensor = other
+            self.device = other.device
         else:
             raise ValueError(f'not support set type {type(other)} to Tensor.data')
 
@@ -111,7 +133,7 @@ class Tensor:
 
     @requires_grad.setter
     def requires_grad(self, requires_grad):
-        if not isinstance(self.dtype, typing.Float):
+        if not isinstance(self.dtype, typing.Float) and requires_grad:
             raise RuntimeError('only Tensors of floating point and complex dtype can require gradients')
         self._requires_grad = requires_grad
         if self.tensor is not None and requires_grad:
@@ -120,21 +142,24 @@ class Tensor:
                 self.tensor.param_info.name = str(uuid.uuid4())
             self.tensor.param_info.requires_grad = requires_grad
         if requires_grad and self.is_leaf and not hasattr('self', 'attach_grad_hook'):
-            self.attach_grad()
+            # self.attach_grad()
             self._retain_grad = True
 
     def attach_grad(self):
         weak_self = weakref.ref(self)
         def hook(grad):
-            if weak_self()._retain_grad:
-                if weak_self().grad is None:
-                    weak_self().grad = Tensor(grad)
+            param = weak_self()
+            if param._retain_grad:
+                if param.grad is None:
+                    param.grad = Tensor((grad * 1).stub, device=param.device)
                 else:
-                    weak_self().grad += Tensor(grad)
+                    param.grad += Tensor((grad * 1).stub, deivce=param.device)
             return grad
         self.attach_grad_hook = self.register_hook(hook)
 
     def retain_grad(self):
+        if not self.requires_grad:
+            raise RuntimeError("can't retain_grad on Tensor that has requires_grad=False")
         if self.is_leaf:
             self._retain_grad = True
         else:
@@ -192,7 +217,7 @@ class Tensor:
         return np.ndarray.__format__(self.numpy(), format_spec)
 
     def __getitem__(self, slices):
-        return Tensor(self._data.__getitem__(slices))
+        return torch.tensor_getitem(self, slices)
 
     def __setitem__(self, key, value):
         """"""
@@ -210,48 +235,42 @@ class Tensor:
         return Tensor.__add__(other, self)
 
     def __truediv__ (self, other):
-        data, _ = dispatcher.dispatch('div', self, other)
-        self.data = data
-        return self
+        return torch.div(self, other)
 
     def __rtruediv__ (self, other):
-        return Tensor.__truediv__(other, self)
+        return torch.div(other, self)
 
     def __ne__(self, other):
-        data, _ = dispatcher.dispatch('not_equal', self, other)
-        self.data = data
-        return self
+        return torch.ne(self, other)
 
     def __neg__(self):
-        data, _ = dispatcher.dispatch('neg', self)
-        self.data = data
-        return self
+        return torch.neg(self)
 
     def __mul__(self, other):
-        data, _ = dispatcher.dispatch('mul', self, other)
-        self.data = data
-        return self
+        return torch.mul(self, other)
 
     def __rmul__(self, other):
-        return Tensor.__mul__(other, self)
+        return torch.mul(other, self)
 
     def __pow__(self, other):
-        data, _ = dispatcher.dispatch('pow', self, other)
-        self.data = data
-        return self
+        return torch.pow(self, other)
 
     def __sub__(self, other):
-        data, _ = dispatcher.dispatch('sub', self, other)
-        self.data = data
-        return self
+        return torch.sub(self, other)
 
     def __rsub__(self, other):
-        return Tensor.__sub__(other, self)
+        return torch.sub(other, self)
 
     def __eq__(self, other):
-        data, _ = dispatcher.dispatch('equal', self, other)
-        self.data = data
-        return self
+        return torch.equal(self, other)
+
+    def __int__(self):
+        return int(self._data.asnumpy())
+
+    # def __getattribute__(self, name):
+    #     if name.endswith('_') and not name.endswith('__') and self.is_leaf and self.requires_grad and torch.is_grad_enabled():
+    #         raise RuntimeError('a leaf Variable that requires grad is being used in an in-place operation.')
+    #     return super().__getattribute__(name)
 
     def backward(self, gradient=None, retain_graph=None, create_graph=False, inputs=None):
         assert self.requires_grad, "called backward on non-requires-grad tensor"
@@ -262,9 +281,11 @@ class Tensor:
                 raise RuntimeError("grad must specified for non-0-tensor")
         _pynative_executor.end_graph(self.fn, self.data)
         from torch.executor import weights_dict
-        weights = weights_dict.pop(self.fn)
+        weights = weights_dict.get(self.fn)
         _pynative_executor.check_run(grad_, self.fn, weights, None, gradient)
-        _pynative_executor.grad(self.fn, grad_, weights, None, gradient)
+        grads = _pynative_executor.grad(self.fn, grad_, weights, None, gradient)
+        for param, grad in zip(weights, grads):
+            param.grad = Tensor(grad, device=param.device)
 
     # Tensor.new_tensor
     def new_tensor(self, data, *, dtype=None):
@@ -293,6 +314,8 @@ class Tensor:
     def dim(self):
         return self.ndim
 
+    def ndimension(self):
+        return self.ndim
     # Tensor.real
 
 
@@ -569,14 +592,7 @@ class Tensor:
 
     # Tensor.copy_
     def copy_(self, value):
-        if isinstance(value, Tensor):
-            self.stub = value.stub
-            self.tensor = value.tensor
-        elif isinstance(value, MSTensor):
-            self.stub = None
-            self.tensor = value
-        else:
-            raise ValueError(f'not support type: {type(value)}')
+        return torch.copy_(self, value)
 
     # Tensor.conj
 
@@ -733,7 +749,8 @@ class Tensor:
 
 
     # Tensor.div
-
+    def div(self, other):
+        return torch.ops.div(self, other)
 
     # Tensor.div_
 
@@ -754,7 +771,8 @@ class Tensor:
 
 
     # Tensor.element_size
-
+    def element_size(self):
+        return self._data._itemsize
 
     # Tensor.eq
     def eq(self, other):
@@ -1022,7 +1040,8 @@ class Tensor:
 
 
     # Tensor.is_contiguous
-
+    def is_contiguous(self):
+        return self._data.is_contiguous()
 
     # Tensor.is_complex
 
@@ -1031,13 +1050,20 @@ class Tensor:
 
 
     # Tensor.is_floating_point
-
+    def is_floating_point(self):
+        return isinstance(self.dtype, typing.Float)
 
     # Tensor.is_inference
 
 
     # Tensor.is_leaf
-
+    @property
+    def is_leaf(self):
+        if not self.requires_grad:
+            return True
+        if self.requires_grad and self._user_created:
+            return True
+        return False
 
     # Tensor.is_pinned
 
@@ -1173,7 +1199,8 @@ class Tensor:
 
 
     # Tensor.long
-
+    def long(self):
+        return self.to(torch.int64)
 
     # Tensor.lt
 
@@ -1209,7 +1236,8 @@ class Tensor:
 
 
     # Tensor.masked_fill
-
+    def masked_fill(self, mask, value):
+        return torch.masked_fill(self, mask, value)
 
     # Tensor.masked_select
 
@@ -1224,7 +1252,8 @@ class Tensor:
 
 
     # Tensor.max
-
+    def max(self, dim=None, keepdim=False):
+        return torch.ops.max(self, dim, keepdim)
 
     # Tensor.maximum
 
@@ -1246,7 +1275,8 @@ class Tensor:
 
 
     # Tensor.min
-
+    def min(self, dim=None, keepdim=False):
+        return torch.ops.min(self, dim, keepdim)
 
     # Tensor.minimum
 
@@ -1475,7 +1505,7 @@ class Tensor:
 
     # Tensor.reshape
     def reshape(self, *shape):
-        return torch.ops.reshape(self, shape)
+        return torch.ops.reshape(self, *shape)
 
     # Tensor.reshape_as
 
@@ -1638,7 +1668,8 @@ class Tensor:
 
 
     # Tensor.squeeze
-
+    def squeeze(self, dim):
+        return torch.ops.squeeze(self, dim)
 
     # Tensor.squeeze_
 
@@ -1713,6 +1744,7 @@ class Tensor:
             device_str = device_map[device.type]
             data = self._data.move_to(device_str, blocking=not non_blocking)
             out = Tensor(data, device=device)
+            out.requires_grad_(self.requires_grad)
             return out
 
     def to(self, *args, **kwargs):
@@ -1722,6 +1754,9 @@ class Tensor:
         for arg in args:
             if isinstance(arg, device_):
                 out = Tensor._move_to(out, arg, non_blocking)
+            elif isinstance(arg, str):
+                device = device_(arg)
+                out = Tensor._move_to(out, device, non_blocking)
             elif isinstance(arg, mindspore.common.dtype.Type):
                 out = torch.ops.cast(out, arg)
             elif isinstance(arg, Tensor):
@@ -1821,7 +1856,10 @@ class Tensor:
 
 
     # Tensor.type
-
+    def type(self, dtype=None, non_blocking=False):
+        if dtype is None:
+            return str(dtype_class_map[self.dtype])
+        return self.to(dtype, non_blocking=non_blocking)
 
     # Tensor.type_as
 
@@ -1841,19 +1879,37 @@ class Tensor:
 
     # Tensor.uniform_
     def uniform_(self, *args, **kwargs):
+        return torch.ops.uniform_(self, *args, **kwargs)
+
+    def random_(self, *args, **kwargs):
         if len(args) == 1:
             from_ = args[0]
         elif len(args) == 2:
             from_ = args[0]
             to_ = args[1]
-        elif len(args) == 3:
-            from_ = args[0]
-            to_ = args[1]
 
-        from_ = kwargs.get('from', 0)
-        to_ = kwargs.get('to', 1)
-        generator_ = kwargs.get('generator',)
-        pass
+        from_ = kwargs.get("from", 0)
+        to_ = kwargs.get("to", None)
+        generator_ = kwargs.get("generator", None)
+        if not to_:
+            if self.dtype == torch.float64:
+                return self.uniform_(from_, kMantissaFloat64, generator_)
+            elif self.dtype == torch.float32:
+                return self.uniform_(from_, kMantissaFloat32, generator_)
+            elif self.dtype == torch.float16:
+                return self.uniform_(from_, kMantissaFloat16, generator_)
+            elif self.dtype == torch.uint8:
+                return self.uniform_(from_, kMaxUint8, generator_)
+            elif self.dtype == torch.int64:
+                return self.uniform_(from_, kMaxInt64, generator_)
+            elif self.dtype == torch.int32:
+                return self.uniform_(from_, kMaxInt32, generator_)
+            elif self.dtype == torch.int16:
+                return self.uniform_(from_, kMaxInt16, generator_)
+            elif self.dtype == torch.int8:
+                return self.uniform_(from_, kMaxInt8, generator_)
+        to_ = to_ - 1 if to_ > 1 else to_
+        return self.uniform_(from_, to_, generator_)
 
     # Tensor.unique
 
@@ -1862,7 +1918,8 @@ class Tensor:
 
 
     # Tensor.unsqueeze
-
+    def unsqueeze(self, dim):
+        return torch.unsqueeze(self, dim)
 
     # Tensor.unsqueeze_
 
@@ -1903,10 +1960,13 @@ class Tensor:
         return torch.ops.detach(self)
 
 def tensor(data, *, dtype=None, device=None, requires_grad=False):
+    if isinstance(data, Tensor):
+        UserWarning("To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).")
+        return Tensor(data)
     data = MSTensor(data, dtype=dtype)
     tensor = Tensor(data).to(device)
     tensor.requires_grad_(requires_grad)
-    tensor.is_leaf = True
+    tensor._user_created = True
     return tensor
 
 def is_tensor(x):
@@ -1940,6 +2000,11 @@ class BoolTensor(Tensor):
     def __init__(self, *input, device=None):
         super().__init__(*input, device, mindspore.bool_)
 
+class ByteTensor(Tensor):
+    def __init__(self, *input, device=None):
+        super().__init__(*input, device, mindspore.uint8)
+
+
 dtype_class_map = {
     mindspore.float32: FloatTensor,
     mindspore.float16: HalfTensor,
@@ -1947,7 +2012,8 @@ dtype_class_map = {
     mindspore.float64: DoubleTensor,
     mindspore.int32: IntTensor,
     mindspore.int64: LongTensor,
-    mindspore.bool_: BoolTensor
+    mindspore.bool_: BoolTensor,
+    mindspore.uint8: ByteTensor
 }
 
 __all__ = ['tensor', 'is_tensor', 'Tensor']

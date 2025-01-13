@@ -1,6 +1,10 @@
 """array op"""
+import numbers
 from mindspore.ops.auto_generate.gen_arg_handler import str_to_enum
+from mindspore._c_expression import Tensor as MSTensor
+import numpy as np
 
+import torch
 from torch.executor import execute
 
 # adjoint
@@ -92,10 +96,13 @@ def nonzero(input, *, as_tuple=False):
 
 # permute
 def permute(input, dims):
-    return execute('transpose', input, dims)
+    assert isinstance(dims, tuple)
+    return execute('transpose', input, *dims)
 
 # reshape
-def reshape(input, shape):
+def reshape(input, *shape):
+    if isinstance(shape[0], tuple):
+        shape = shape[0]
     return execute('reshape', input, shape)
 
 def view(input, *shape):
@@ -143,7 +150,10 @@ def squeeze(input, dim=None):
     return execute('squeeze', input, dim)
 
 # stack
+
 def stack(tensors, dim=0):
+    if tensors[0].device.type == 'cpu':
+        return execute('stack', tensors, dim)
     return execute('stack_ext', tensors, dim)
 
 # swapaxes
@@ -192,6 +202,423 @@ def unsqueeze(input, dim):
 # where
 def where(condition, input, other):
     return execute('select', condition, input, other)
+
+
+tensor_1d = MSTensor([0], dtype=torch.int64)
+empty_tensor_1d = MSTensor(shape=(0,), dtype=torch.int64)
+empty_tensor_9d = MSTensor(shape=(0,)*9, dtype=torch.int64)
+
+def _do_select(self, dim: int, index: int, dim_index: int, self_shape: list):
+    """call select view operator"""
+    if not self_shape:
+        raise TypeError("Invalid index of a 0-dim tensor.")
+    dim_size = self_shape[dim]
+    if index >= dim_size or index < -dim_size:
+        raise IndexError(f"Index {index} is out of bounds for dimension {dim_index} with size {dim_size}")
+    index = index + dim_size if index < 0 else index
+    return execute('select_ext', self, dim, index)
+
+
+def _do_slice(self, dim: int, index: slice, self_shape: list):
+    """call slice view operator"""
+    def _get_index(index, default):
+        if index is None:
+            return default
+        return index
+
+    if not self_shape:
+        raise TypeError("Invalid index of a 0-dim tensor.")
+    step = _get_index(index.step, 1)
+    if step <= 0:
+        raise ValueError("slice step must be positive")
+    start = _get_index(index.start, 0)
+    end = _get_index(index.stop, self_shape[dim])
+    if start == 0 and end == self_shape[dim] and step == 1:
+        return self
+    return execute('slice_ext', self, dim, start, end, step)
+
+def _wrap_index_to_tuple(index):
+    """Wrap index to tuple"""
+    if isinstance(index, tuple):
+        return index
+    if isinstance(index, list):
+        if len(index) < 32 and any(isinstance(i, (torch.Tensor, list, tuple, slice, type(None), Ellipsis)) for i in index):
+            return tuple(index)
+    return (index,)
+
+
+def _count_indexed_dims(indexes):
+    """Count indexed dims"""
+    count = 0
+    for index in indexes:
+        if isinstance(index, torch.Tensor):
+            if index.dtype == torch.bool:
+                count += index.ndim
+            else:
+                count += 1
+        elif not isinstance(index, (type(None), type(...), bool)):
+            count += 1
+    return count
+
+def tensor_getitem(self, index):
+    """Handle tensor getitem"""
+    if isinstance(index, bool):
+        self_viewed = unsqueeze(self, 0)
+        index_for_bool = tensor_1d if index else empty_tensor_1d
+        return execute('index', self_viewed, [index_for_bool])
+    if isinstance(index, int):
+        return _do_select(self, 0, index, 0, list(self.shape))
+    if isinstance(index, slice):
+        result = _do_slice(self, 0, index, list(self.shape))
+        return result
+    if index is None:
+        return unsqueeze(self, 0)
+    if isinstance(index, Ellipsis):
+        return self
+    indexes = _wrap_index_to_tuple(index)
+    indexed_dims = _count_indexed_dims(indexes)
+    if self.ndim < indexed_dims:
+        raise IndexError(f"too many indices for tensor with dimension size {self.ndim}")
+    remain_indexes = []
+    self_viewed, remain_indexes = _process_multi_dim_index(self, indexes, remain_indexes, indexed_dims)
+    if not remain_indexes:
+        return self_viewed
+    return execute('index', self_viewed, remain_indexes)
+
+
+_SLICE_ERROR = (
+    'only integers, slices (`:`), ellipsis (`...`), '
+    'newaxis (`None`) and integer or boolean arrays are valid indices'
+)
+
+def _as_index(idx, need_scalar=True):
+    """Helper function to parse idx as an index.
+    """
+    if isinstance(idx, numbers.Integral):
+        return idx, True
+
+    idx = torch.Tensor(idx)
+    if need_scalar and idx.ndim not in (None, 0):
+        raise IndexError(_SLICE_ERROR + ', got {!r}'.format(idx))
+
+    if idx.ndim == 0:
+        return idx.item(), True
+    return idx, False
+
+
+def cumprod(x, axis=0, exclusive=False, reverse=False):
+    x = np.array(x)
+    if reverse:
+        x = np.flip(x, axis=axis)
+
+    if exclusive:
+        shifted_x = np.ones_like(x)
+        if axis == 0:
+            shifted_x[1:] = x[:-1]
+        else:
+            shifted_x[:, 1:] = x[:, :-1]
+        result = np.cumprod(shifted_x, axis=axis)
+    else:
+        result = np.cumprod(x, axis=axis)
+
+    if reverse:
+        result = np.flip(result, axis=axis)
+
+    return result
+
+def moveaxis(a, source, destination):
+    """Raises ValueError if source, destination not in (-ndim(a), ndim(a))."""
+    if not source and not destination:
+        return a
+
+    if isinstance(source, int):
+        source = (source,)
+    if isinstance(destination, int):
+        destination = (destination,)
+    if len(source) != len(destination):
+        raise ValueError('The lengths of source and destination must equal')
+
+    a_rank = a.ndim
+
+    def _correct_axis(axis, rank):
+        if axis < 0:
+            return axis + rank
+        return axis
+
+    source = tuple(_correct_axis(axis, a_rank) for axis in source)
+    destination = tuple(_correct_axis(axis, a_rank) for axis in destination)
+
+    if a.ndim is not None:
+        perm = [i for i in range(a_rank) if i not in source]
+        for dest, src in sorted(zip(destination, source)):
+            assert dest <= len(perm)
+            perm.insert(dest, src)
+    else:
+        r = torch.range(0, a_rank, 1)
+
+        def _remove_indices(a, b):
+            """Remove indices (`b`) from `a`."""
+            items = torch.unbind(
+                torch.sort(torch.stack(b))
+            )
+
+            i = 0
+            result = []
+
+            for item in items:
+                result.append(a[i:item])
+                i = item + 1
+
+            result.append(a[i:])
+
+            return torch.concat(result, 0)
+
+        minus_sources = _remove_indices(r, source)
+        minus_dest = _remove_indices(r, destination)
+
+        perm = torch.scatter_nd(
+            torch.unsqueeze(minus_dest, 1), minus_sources, [a_rank]
+        )
+        perm = torch.tensor_scatter_update(
+            perm, torch.unsqueeze(destination, 1), source
+        )
+    a = torch.permute(a, tuple(perm))
+
+    return a
+
+def _slice_helper(tensor, slice_spec, do_update=False, updates=None):
+    """Helper function for __getitem__ and _with_index_update_helper.
+    """
+    begin, end, strides = [], [], []
+    new_axis_mask, shrink_axis_mask = 0, 0
+    begin_mask, end_mask = 0, 0
+    ellipsis_mask = 0
+    advanced_indices = []
+    shrink_indices = []
+    for index, s in enumerate(slice_spec):
+        if isinstance(s, slice):
+            if s.start is not None:
+                begin.append(s.start)
+            else:
+                begin.append(0)
+                begin_mask |= (1 << index)
+            if s.stop is not None:
+                end.append(s.stop)
+            else:
+                end.append(0)
+                end_mask |= (1 << index)
+            if s.step is not None:
+                strides.append(s.step)
+            else:
+                strides.append(1)
+        elif s is Ellipsis:
+            begin.append(0)
+            end.append(0)
+            strides.append(1)
+            ellipsis_mask |= (1 << index)
+        elif s is None:
+            # begin.append(0)
+            # end.append(0)
+            # strides.append(1)
+            new_axis_mask |= (1 << index)
+        else:
+            s, is_scalar = _as_index(s, False)
+            if is_scalar:
+                begin.append(s)
+                end.append(s + 1)
+                strides.append(1)
+                shrink_axis_mask |= (1 << index)
+                shrink_indices.append(index)
+            else:
+                begin.append(0)
+                end.append(0)
+                strides.append(1)
+                begin_mask |= (1 << index)
+                end_mask |= (1 << index)
+                advanced_indices.append((index, s, ellipsis_mask != 0))
+
+    if do_update and not advanced_indices:
+        return strided_slice_update(
+            tensor,
+            begin,
+            end,
+            strides,
+            updates,
+            begin_mask=begin_mask,
+            end_mask=end_mask,
+            shrink_axis_mask=shrink_axis_mask,
+            new_axis_mask=new_axis_mask,
+            ellipsis_mask=ellipsis_mask,
+        )
+    else:
+        if updates is not None:
+            original_tensor = tensor
+        tensor = execute(
+            'strided_slice',
+            tensor,
+            begin,
+            end,
+            strides,
+            begin_mask=begin_mask,
+            end_mask=end_mask,
+            shrink_axis_mask=shrink_axis_mask,
+            new_axis_mask=new_axis_mask,
+            ellipsis_mask=ellipsis_mask,
+        )
+
+    if not advanced_indices:
+        return tensor
+
+    advanced_indices_map = {}
+    for index, data, had_ellipsis in advanced_indices:
+        if had_ellipsis:
+            num_shrink = len([x for x in shrink_indices if x > index])
+            dim = index - len(slice_spec) + num_shrink
+        else:
+            num_shrink = len([x for x in shrink_indices if x < index])
+            dim = index - num_shrink
+        advanced_indices_map[dim] = data
+    dims = sorted(advanced_indices_map.keys())
+    dims_contiguous = True
+    if len(dims) > 1:
+        if dims[0] < 0 and dims[-1] >= 0:  # not all same sign
+            dims_contiguous = False
+        else:
+            for i in range(len(dims) - 1):
+                if dims[i] + 1 != dims[i + 1]:
+                    dims_contiguous = False
+                    break
+    indices = [advanced_indices_map[x] for x in dims]
+    indices = broadcast_tensors(*indices)
+    stacked_indices = torch.stack(indices, axis=-1)
+    # Skip the contiguous-dims optimization for update because there is no
+    # tf.*scatter* op that supports the `axis` argument.
+    if not dims_contiguous or updates is not None:
+        if range(len(dims)) != dims:
+            tensor = moveaxis(tensor, dims, range(len(dims)))
+        tensor_shape_prefix = torch.Tensor(tensor.shape[: len(dims)])
+        stacked_indices = where(
+            stacked_indices < 0,
+            stacked_indices + tensor_shape_prefix,
+            stacked_indices,
+        )
+        if updates is None:
+            return torch.gather_nd(tensor, stacked_indices)
+        else:
+            # We only need to move-axis `updates` in the contiguous case becausce
+            # only in this case the result dimensions of advanced indexing are in
+            # the middle of `updates`. In the non-contiguous case, those dimensions
+            # are always at the front.
+            if dims_contiguous:
+                batch_size = stacked_indices.ndim - 1
+                batch_start = dims[0]
+                if batch_start < 0:
+                    batch_start += len(dims) - batch_size
+
+                def range_(start, length):
+                    return range(start, start + length)
+
+                updates = moveaxis(
+                    updates, range_(batch_start, batch_size), range(batch_size)
+                )
+            tensor = torch.tensor_scatter_update(tensor, stacked_indices, updates)
+            if range(len(dims)) != dims:
+                tensor = moveaxis(tensor, range(len(dims)), dims)
+            return strided_slice_update(
+                original_tensor,
+                begin,
+                end,
+                strides,
+                tensor,
+                begin_mask=begin_mask,
+                end_mask=end_mask,
+                shrink_axis_mask=shrink_axis_mask,
+                new_axis_mask=new_axis_mask,
+                ellipsis_mask=ellipsis_mask,
+            )
+
+    # Note that gather_nd does not support gathering from inside the array.
+    # To avoid shuffling data back and forth, we transform the indices and
+    # do a gather instead.
+    rank = tensor.ndim
+    dims = [(x + rank if x < 0 else x) for x in dims]
+    shape_tensor = tensor.shape
+    dim_sizes = np.take_along_axis(np.array(shape_tensor), np.array(dims), axis=0)
+    if len(dims) == 1:
+        stacked_indices = indices[0]
+    stacked_indices = stacked_indices.to(torch.int32)
+    stacked_indices = where(
+        stacked_indices < 0, stacked_indices + torch.tensor(dim_sizes), stacked_indices
+    )
+    axis = dims[0]
+    if len(dims) > 1:
+        index_scaling = cumprod(dim_sizes, reverse=True, exclusive=True)
+
+        def _tensordot(a, b):
+            # TODO(b/168657656): This function should be replaced by
+            # tensordot(axis=1) once MatMul has int32 XLA kernel.
+            b = torch.broadcast_to(b, a.shape)
+            return torch.sum(a * b, dim=-1)
+
+        stacked_indices = _tensordot(stacked_indices, torch.tensor(index_scaling))
+        flat_shape = shape_tensor[:axis] + (-1,) + shape_tensor[axis + len(dims) :]
+        tensor = torch.reshape(tensor, flat_shape)
+
+    return torch.gather(tensor, stacked_indices, axis=axis)
+
+def _as_spec_tuple(slice_spec):
+    """Convert slice_spec to tuple."""
+    if isinstance(slice_spec, (list, tuple)):
+        is_index = True
+        for s in slice_spec:
+            if s is None or s is Ellipsis or isinstance(s, (list, tuple, slice)):
+                is_index = False
+                break
+        if not is_index:
+            return tuple(slice_spec)
+    return (slice_spec,)
+
+def getitem(self, slice_spec):
+    if (
+        isinstance(slice_spec, bool)
+        or (
+            isinstance(slice_spec, torch.Tensor)
+            and slice_spec.dtype == torch.bool_
+        )
+    ):
+        return torch.boolean_mask(tensor=self, mask=slice_spec)
+
+    if not isinstance(slice_spec, tuple):
+        slice_spec = _as_spec_tuple(slice_spec)
+
+    result_t = _slice_helper(self, slice_spec)
+    return result_t
+
+def setitem(a, slice_spec, updates):
+    """Implementation of ndarray._with_index_*."""
+    if (
+        isinstance(slice_spec, bool)
+        or (
+            isinstance(slice_spec, torch.Tensor)
+            and slice_spec.dtype == torch.bool_
+        )
+    ):
+        slice_spec = nonzero(slice_spec)
+
+    if not isinstance(slice_spec, tuple):
+        slice_spec = _as_spec_tuple(slice_spec)
+
+    a_dtype = a.dtype
+    result_t = _slice_helper(a, slice_spec, True, updates)
+    return result_t.astype(a_dtype)
+
+def copy_(self, other):
+    if self.device.type == 'cpu':
+        execute('assign', self, other)
+        # self._data.assign_value_cpp(other._data)
+    else:
+        execute('inplace_copy', self, other)
+    return self
 
 __all__ = [
     # adjoint,
@@ -243,4 +670,7 @@ __all__ = [
     'unsqueeze',
     # vsplit
     'where',
+    'tensor_getitem',
+    'getitem',
+    'copy_'
 ]

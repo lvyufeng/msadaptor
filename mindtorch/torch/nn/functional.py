@@ -8,7 +8,10 @@ from mindspore import ops, Tensor
 from mindspore.ops._primitive_cache import _get_cache_prim
 from mindspore.ops.function.random_func import _get_seed, _set_prim_op_user_data
 from mindspore.ops.operations import nn_ops
+from mindspore.ops.auto_generate.gen_arg_handler import dtype_to_type_id
 
+import torch
+from torch.executor import execute
 from ..configs import DEVICE_TARGET, ON_ORANGE_PI, use_pyboost
 
 def gelu(input, approximate='none'):
@@ -16,10 +19,11 @@ def gelu(input, approximate='none'):
         return mindspore.mint.nn.functional.gelu(input, approximate)
     return ops.gelu(input, approximate)
 
-def relu(input):
-    if use_pyboost():
-        return mindspore.mint.nn.functional.relu(input)
-    return ops.relu(input)
+def relu(input, inplace=False):
+    if inplace:
+        execute('inplace_relu', input)
+        return input
+    return execute('relu', input)
 
 def tanh(input):
     if use_pyboost():
@@ -167,18 +171,8 @@ def drop_and_mask(keep_prob, seed=None):
     out, mask = dropout_op(input)
     return out, mask
 
-dense_ = ops.Dense()
 def linear(input, weight, bias=None):
-    if ON_ORANGE_PI:
-        input = input.to(mindspore.float16)
-        weight = weight.to(mindspore.float16)
-        if bias is not None:
-            bias = bias.to(mindspore.float16)
-            return dense_(input, weight) + bias
-        return dense_(input, weight)
-    if use_pyboost():
-        return mindspore.mint.nn.functional.linear(input, weight, bias)
-    return dense_(input, weight, bias)
+    return execute('dense', input, weight, bias)
 
 
 def binary_cross_entropy_with_logits(input, target, weight=None, reduction='mean', pos_weight=None):
@@ -208,10 +202,10 @@ def gumbel_softmax(logits: Tensor, tau: float = 1, hard: bool = False, eps: floa
     return ret
 
 def log_softmax(input, dim=-1, dtype=None):
-    out = ops.log_softmax(input, dim)
-    if dtype is not None:
-        out = out.to(dtype)
-    return out
+    if input.device.type == 'cpu':
+        return execute('log_softmax', input, dim)
+    return execute('log_softmax_ext', input, dim,
+                   dtype if dtype is None else dtype_to_type_id('LogSoftmaxExt', 'dtype', dtype))
 
 def embedding(input, weight, padding_idx=None, max_norm=None, norm_type=2.0, scale_grad_by_freq=False):
     if use_pyboost():
@@ -241,16 +235,11 @@ def pad(input, pad, mode='constant', value=0.0):
 
 def nll_loss(input, target, weight=None, ignore_index=-100, reduction='mean', label_smoothing=0.0):
     return _inner_nll_loss(input, target, weight, ignore_index, reduction, label_smoothing)
-    # if label_smoothing != 0.0 or target.ndim != 1:
-    # if weight is None:
-    #     weight = ops.ones(input.shape[-1], dtype=input.dtype)
-    # _nll_loss = _get_cache_prim(ops.NLLLoss)(reduction, ignore_index)
-    # return _nll_loss(input, target, weight)[0]
 
 def cross_entropy(input, target, weight=None, ignore_index=-100, reduction='mean', label_smoothing=0.0):
-    input = input.to(mindspore.float32)
+    input = input.to(torch.float32)
     class_dim = 0 if input.ndim == 1 else 1
-    if target.dtype in [mindspore.float32, mindspore.float16]:
+    if target.dtype in [torch.float32, torch.float16]:
         return _cross_entropy(input, target, class_dim, weight, reduction, label_smoothing)
     return nll_loss(log_softmax(input, class_dim), target, weight, ignore_index, reduction, label_smoothing)
 
@@ -264,7 +253,7 @@ def _cross_entropy(inputs, target, target_dim, weight=None, reduction='mean', la
         target = target * (1 - label_smoothing) + label_smoothing / n_classes
 
     if weight is None:
-        weight = ops.ones_like(inputs)
+        weight = torch.ones_like(inputs)
     elif inputs.ndim != 1:
         broadcast_shape = [1 for _ in range(inputs.ndim)]
         broadcast_shape[1] = weight.shape[0]
@@ -302,31 +291,31 @@ def _inner_nll_loss(inputs, target, weight=None, ignore_index=-100, reduction='m
 def _nll_loss(inputs, target, target_dim=-1, weight=None, ignore_index=None, reduction='none', label_smoothing=0.0):
     """nll loss inner function"""
     if target.ndim == inputs.ndim - 1:
-        target = target.expand_dims(target_dim)
+        target = target.unsqueeze(target_dim)
     if ignore_index is not None:
-        non_pad_mask = ops.equal(target, ignore_index)
-        target = target.masked_fill(non_pad_mask, ops.cast(0, target.dtype))
+        non_pad_mask = torch.equal(target, ignore_index)
+        target = target.masked_fill(non_pad_mask, 0)
     else:
         non_pad_mask = target
     if weight is not None:
-        loss_weights = ops.gather(weight, target, 0)
+        loss_weights = torch.gather(weight, 0, target)
         orig_shape = inputs.shape
         if inputs.ndim != 2:
             inputs = inputs.view(orig_shape[:2] + (-1,))
             weight = weight.view(weight.shape + (1,))
         weighted_inputs = inputs * weight
         weighted_inputs = weighted_inputs.view(orig_shape)
-        loss = ops.neg(ops.gather_d(weighted_inputs, target_dim, target))
-        smooth_loss = ops.neg(weighted_inputs.sum(axis=target_dim, keepdims=True))
+        loss = torch.neg(torch.gather(weighted_inputs, target_dim, target))
+        smooth_loss = torch.neg(weighted_inputs.sum(dim=target_dim, keepdim=True))
     else:
-        loss = ops.neg(ops.gather_d(inputs, target_dim, target))
-        smooth_loss = ops.neg(inputs.sum(axis=target_dim, keepdims=True))
-        loss_weights = ops.ones_like(loss)
+        loss = torch.neg(torch.gather(inputs, target_dim, target))
+        smooth_loss = torch.neg(inputs.sum(dim=target_dim, keepdim=True))
+        loss_weights = torch.ones_like(loss)
 
     if ignore_index is not None:
-        loss = loss.masked_fill(non_pad_mask, ops.cast(0, loss.dtype))
-        loss_weights = loss_weights.masked_fill(non_pad_mask, ops.cast(0, loss_weights.dtype))
-        smooth_loss = smooth_loss.masked_fill(non_pad_mask, ops.cast(0, smooth_loss.dtype))
+        loss = loss.masked_fill(non_pad_mask, 0.)
+        loss_weights = loss_weights.masked_fill(non_pad_mask, 0.)
+        smooth_loss = smooth_loss.masked_fill(non_pad_mask, 0.)
 
     loss = loss.squeeze(target_dim)
     smooth_loss = smooth_loss.squeeze(target_dim)

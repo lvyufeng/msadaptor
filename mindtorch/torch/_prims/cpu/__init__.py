@@ -183,3 +183,9 @@ def strided_slice_cpu(*args):
     return _pynative_executor.run_op_async(strided_slice_op, strided_slice_op.name, args)
 
 __all__.append('strided_slice_cpu')
+
+def _run_primitive_op_cpu(prim_op, *args):
+    prim_op.set_device('CPU')
+    return _pynative_executor.run_op_async(prim_op, prim_op.name, args)
+
+__all__.append('_run_primitive_op_cpu')

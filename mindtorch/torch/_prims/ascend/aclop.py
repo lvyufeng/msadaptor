@@ -71,6 +71,13 @@ def raw_sgd_npu(param, grad, lr, dampening, weight_decay, nesterov, accum, momen
     args = (param, grad, lr, accum, momentum, stat)
     return _pynative_executor.run_op_async(sgd_op, sgd_op.name, args)
 
+
+def _run_primitive_op_npu(prim_op, *args):
+    prim_op.set_device('Ascend')
+    return _pynative_executor.run_op_async(prim_op, prim_op.name, args)
+
+__all__.append('_run_primitive_op_npu')
+
 __all__.extend(
     [
         'raw_adadelta_npu',

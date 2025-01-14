@@ -728,6 +728,8 @@ def unfold(input, dimension, size, step):
     output = torch.swapaxes(output, _dimension + 1, -1)
     return output
 
+def _run_primitive_op(prim_op, *args):
+    return execute('_run_primitive_op', prim_op, *args)
 
 __all__ = [
     "bincount",
@@ -759,4 +761,5 @@ __all__ = [
     "triu",
     "unflatten",
     "unfold",
+    "_run_primitive_op",
 ]

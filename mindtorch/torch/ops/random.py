@@ -36,7 +36,7 @@ def multinomial(input, num_samples, replacement=False, *, generator=None, out=No
 
 
 # normal
-def normal(mean=0.0, std=1.0, *, size=None, generator=None, out=None):
+def normal_(mean=0.0, std=1.0, *, size=None, generator=None, out=None):
     if generator is None:
         generator = default_generator
     seed, offset = generator._step(generator_step_)  # pylint: disable=protected-access
@@ -321,7 +321,7 @@ def randperm(
 __all__ = [
     "bernoulli",
     "multinomial",
-    "normal",
+    "normal_",
     "rand",
     "rand_like",
     "randint",

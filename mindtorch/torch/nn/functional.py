@@ -9,15 +9,18 @@ from mindspore.ops._primitive_cache import _get_cache_prim
 from mindspore.ops.function.random_func import _get_seed, _set_prim_op_user_data
 from mindspore.ops.operations import nn_ops
 from mindspore.ops.auto_generate.gen_arg_handler import dtype_to_type_id
+from mindspore.common.generator import default_generator
 
 import torch
 from torch.executor import execute
 from ..configs import DEVICE_TARGET, ON_ORANGE_PI, use_pyboost
 
+generator_step_ = 12
+
 def gelu(input, approximate='none'):
-    if use_pyboost():
-        return mindspore.mint.nn.functional.gelu(input, approximate)
-    return ops.gelu(input, approximate)
+    if approximate == 'tanh':
+        return execute('gelu', input)
+    return input * 0.5 * (1.0 + torch.erf(input / torch.sqrt(2.0)))
 
 def relu(input, inplace=False):
     if inplace:
@@ -31,16 +34,10 @@ def tanh(input):
     return ops.tanh(input)
 
 def sigmoid(input):
-    if use_pyboost() and not ON_ORANGE_PI:
-        return mindspore.mint.nn.functional.sigmoid(input)
-    return ops.sigmoid(input)
+    return execute('sigmoid', input)
 
 def silu(input):
-    if DEVICE_TARGET == 'CPU' or ON_ORANGE_PI:
-        return input * sigmoid(input)
-    if use_pyboost():
-        return mindspore.mint.nn.functional.silu(input)
-    return ops.silu(input)
+    return execute('silu', input)
 
 def mish(input):
     return ops.mish(input)
@@ -62,7 +59,7 @@ def softplus(input, beta=1, threshold=20):
     return ops.softplus(input, beta, threshold)
 
 def logsigmoid(input):
-    return ops.logsigmoid(input)
+    return execute('logsigmoid', input)
 
 def leaky_relu(input, alpha=0.2):
     if use_pyboost():
@@ -83,6 +80,9 @@ def hardsigmoid(input, inplace=False):
 
 def hardswish(input: Tensor, inplace: bool = False) -> Tensor:
     return ops.hardswish(input)
+
+def hardshrink(input, lambd=0.5):
+    return execute('hard_shrink', input, lambd)
 
 def avg_pool1d(input_array, pool_size, stride, padding=0, ceil_mode=False, count_include_pad=True):
     """
@@ -154,12 +154,15 @@ def avg_pool2d(input, kernel_size, stride=None, padding=0, ceil_mode=False, coun
 
     return ops.avg_pool2d(input, kernel_size, stride, padding, ceil_mode, count_include_pad, divisor_override)
 
-def dropout(input, p=0.5, training=True):
-    if not training or p == 0:
+def dropout(input, p=0.5, training=True, inplace=False):
+    if not training:
         return input
-    if use_pyboost() and not ON_ORANGE_PI:
-        return mindspore.mint.nn.functional.dropout(input, p, training)
-    return ops.dropout(input, p, training)
+    seed, offset = default_generator._step(generator_step_)  # pylint: disable=protected-access
+    out, _ = execute('dropout_ext', input, p, seed, offset)
+    if inplace:
+        input.copy_(out)
+        return input
+    return out
 
 def dropout2d(input, p=0.5, training=False):
     return ops.dropout2d(input, p, training)
@@ -208,12 +211,10 @@ def log_softmax(input, dim=-1, dtype=None):
                    dtype if dtype is None else dtype_to_type_id('LogSoftmaxExt', 'dtype', dtype))
 
 def embedding(input, weight, padding_idx=None, max_norm=None, norm_type=2.0, scale_grad_by_freq=False):
-    if use_pyboost():
-        return mindspore.ops.auto_generate.gen_ops_prim.embedding_op(input, weight, padding_idx, max_norm, norm_type, scale_grad_by_freq)
-    return ops.gather(weight, input, 0)
+    return execute('embedding', input, weight, padding_idx, max_norm, norm_type, scale_grad_by_freq)
 
 def rms_norm(input, weight, eps=1e-5):
-    return ops.rms_norm(input, weight, eps)
+    return execute('rms_norm', input, weight, eps)
 
 def fast_gelu(x):
     return ops.fast_gelu(x)
@@ -226,12 +227,47 @@ def apply_rotary_pos_emb(query, key, cos, sin, position_ids, cos_format=0):
         query, key, cos, sin, position_ids, cos_format
     )
 
+def _reflection_pad(input, pad):
+    """reflection pad"""
+    out = input
+    if len(pad) == 2:
+        out = execute('reflection_pad_1d', input, pad)
+    elif len(pad) == 4:
+        out = execute('reflection_pad_2d', input, pad)
+    else:
+        out = execute('reflection_pad_3d', input, pad)
+    return out
+
+def _replication_pad(input, pad):
+    """replication pad"""
+    out = input
+    if len(pad) == 2:
+        out = execute('replication_pad_1d', input, pad)
+    elif len(pad) == 4:
+        out = execute('replication_pad_2d', input, pad)
+    else:
+        out = execute('replication_pad_3d', input, pad)
+    return out
+
 def pad(input, pad, mode='constant', value=0.0):
-    if use_pyboost():
-        return mindspore.mint.nn.functional.pad(input, pad, mode, value)
-    if mode in ['reflect', 'circular']:
-        return ops.pad(input, pad, mode)
-    return ops.pad(input, pad, mode, value)
+    out = input
+    if (isinstance(pad, tuple) and not pad):
+        return out
+    if mode == "constant":
+        value = 0 if value is None else value
+        out = execute('constant_pad_nd', input, pad, value)
+    else:
+        if value is not None and value != 0:
+            raise ValueError(f"Padding mode {mode} doesn\'t take in value argument.")
+        if mode == "circular":
+            out = _circular_pad(input, pad)
+        elif mode == "reflect":
+            out = _reflection_pad(input, pad)
+        elif mode == "replicate":
+            out = _replication_pad(input, pad)
+        else:
+            raise ValueError(f"Pad filling mode must be 'constant' 'circular' 'reflect' or 'replicate'.")
+    return out
 
 def nll_loss(input, target, weight=None, ignore_index=-100, reduction='mean', label_smoothing=0.0):
     return _inner_nll_loss(input, target, weight, ignore_index, reduction, label_smoothing)
@@ -354,30 +390,25 @@ def manual_softmax(x, dim=-1):
     return exp_x / ops.sum(exp_x, dim=dim, keepdim=True)
 
 def softmax(input, dim=-1, *, dtype=None):
-    if use_pyboost():
-        return mindspore.mint.nn.functional.softmax(input, dim, dtype=dtype)
+    out = execute('softmax', input, dim)
     if dtype is not None:
-        input = input.to(dtype)
-    if dim is None:
-        dim = -1
-    if ON_ORANGE_PI:
-        return manual_softmax(input, dim)
-    softmax_ = _get_cache_prim(ops.Softmax)(dim)
-    return softmax_(input)
+        out = out.to(dtype)
+    return out
 
 def layer_norm(input, normalized_shape, weight=None, bias=None, eps=1e-5):
-    if weight is None:
-        weight = ops.ones(normalized_shape, dtype=input.dtype)
-    if bias is None:
-        bias = ops.zeros(normalized_shape, dtype=input.dtype)
-    if use_pyboost():
-        return mindspore.mint.nn.functional.layer_norm(input, normalized_shape, weight, bias, eps)
-    if weight is not None:
-        begin_axis = input.ndim - weight.ndim
-    else:
-        begin_axis = -1
-    _layer_norm = _get_cache_prim(ops.LayerNorm)(begin_axis, begin_axis, epsilon=eps)
-    return _layer_norm(input, weight, bias)[0]
+    return execute('layer_norm_ext', input, normalized_shape, weight, bias, eps)
+    # if weight is None:
+    #     weight = ops.ones(normalized_shape, dtype=input.dtype)
+    # if bias is None:
+    #     bias = ops.zeros(normalized_shape, dtype=input.dtype)
+    # if use_pyboost():
+    #     return mindspore.mint.nn.functional.layer_norm(input, normalized_shape, weight, bias, eps)
+    # if weight is not None:
+    #     begin_axis = input.ndim - weight.ndim
+    # else:
+    #     begin_axis = -1
+    # _layer_norm = _get_cache_prim(ops.LayerNorm)(begin_axis, begin_axis, epsilon=eps)
+    # return _layer_norm(input, weight, bias)[0]
 
 def interpolate(input, size=None, scale_factor=None, mode='nearest', align_corners=None, recompute_scale_factor=None, antialias=False):
     return ops.interpolate(input, size, scale_factor, mode, align_corners, recompute_scale_factor)
@@ -1175,4 +1206,4 @@ def make_causal_mask(
     )
 
 def rotary_position_embedding(x, cos, sin, mode=0):
-    return ops.rotary_position_embedding(x, cos, sin, mode)
+    return execute('rotary_position_embedding', x, cos, sin, mode)

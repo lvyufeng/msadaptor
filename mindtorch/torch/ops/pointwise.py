@@ -109,9 +109,12 @@ def arctan2(input, other):
 
 
 # bitwise_not
-def bitwise_not(input):
-    return execute("bitwise_not", input)
-
+def bitwise_not(input, *, out=None):
+    output = execute("bitwise_not", input)
+    if out is None:
+        return output
+    out.data = output
+    return out
 
 # bitwise_and
 def bitwise_and(input, other):
@@ -563,6 +566,7 @@ __all__ = [
     "atan",
     "atan2",
     "atanh",
+    "bitwise_not",
     "bitwise_and",
     "bitwise_or",
     "bitwise_xor",

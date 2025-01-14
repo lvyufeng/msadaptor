@@ -183,3 +183,9 @@ def strided_slice_cpu(*args):
     return _pynative_executor.run_op_async(strided_slice_op, strided_slice_op.name, args)
 
 __all__.append('strided_slice_cpu')
+
+hard_shrink_op = HShrink().set_device('CPU')
+def hard_shrink_cpu(*args):
+    return pyboost_hshrink(hard_shrink_op, args)
+
+__all__.append('hard_shrink_cpu')

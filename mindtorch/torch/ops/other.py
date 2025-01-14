@@ -67,10 +67,10 @@ def cdist(x1, x2, p=2.0, compute_mode="use_mm_for_euclid_dist_if_necessary"):
     return execute('cdist', x1, x2, p)
 
 # clone
-def clone(input):
-    copy_tensor = copy.deepcopy(input)
-    copy_tensor.data = execute('clone', input)
-    return copy_tensor
+def clone(input, *, memory_format=torch.preserve_format):
+    if input.device.type == 'cpu':
+        return execute('identity', input)
+    return execute('clone', input)
 
 
 # combinations
@@ -729,6 +729,9 @@ def unfold(input, dimension, size, step):
     return output
 
 
+def contiguous(input):
+    return execute('contiguous', input)
+
 __all__ = [
     "bincount",
     "broadcast_shapes",
@@ -759,4 +762,5 @@ __all__ = [
     "triu",
     "unflatten",
     "unfold",
+    "contiguous"
 ]

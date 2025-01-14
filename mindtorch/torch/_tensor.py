@@ -230,15 +230,14 @@ class Tensor(metaclass=TensorMeta):
 
     def __setitem__(self, key, value):
         """"""
-        # return torch.ops.array.setitem(self, key, value)
+        # return torch.array.setitem(self, key, value)
         tensor_operator_registry.get("__setitem__")(self.data, key, value)
 
     def __add__(self, other):
-        return torch.ops.add(self, other)
+        return torch.add(self, other)
 
     def __iadd__(self, other):
-        self.data = torch.ops.add(self, other)
-        return self
+        return self.copy_(torch.add(self, other))
 
     def __radd__(self, other):
         return Tensor.__add__(other, self)
@@ -261,11 +260,17 @@ class Tensor(metaclass=TensorMeta):
     def __rmul__(self, other):
         return torch.mul(other, self)
 
+    def __imul__(self, other):
+        return self.copy_(torch.mul(self, other))
+
     def __pow__(self, other):
         return torch.pow(self, other)
 
     def __sub__(self, other):
         return torch.sub(self, other)
+
+    def __isub__(self, other):
+        return self.copy_(torch.sub(self, other))
 
     def __rsub__(self, other):
         return torch.sub(other, self)
@@ -274,10 +279,10 @@ class Tensor(metaclass=TensorMeta):
         return torch.equal(self, other)
 
     def __int__(self):
-        return int(self._data.asnumpy())
+        return int(self.item())
 
     def __index__(self):
-        return int(self._data.asnumpy())
+        return int(self.item())
 
     # def __getattribute__(self, name):
     #     if name.endswith('_') and not name.endswith('__') and self.is_leaf and self.requires_grad and torch.is_grad_enabled():
@@ -291,17 +296,36 @@ class Tensor(metaclass=TensorMeta):
         return Tensor(data, dtype)
 
     # Tensor.new_full
-    def new_full(self, size, fill_value, *, dtype=None):
-        return torch.ops.full
+    def new_full(self, size, fill_value, *, dtype=None, device=None, requires_grad=False, layout=torch.strided, pin_memory=False):
+        if dtype is None:
+            dtype = self.dtype
+        if device is None:
+            device = self.device
+        return torch.full(size, fill_value, dtype=dtype, device=device, requires_grad=requires_grad)
 
     # Tensor.new_empty
-
+    def new_empty(self, size, *, dtype=None, device=None, requires_grad=False, layout=torch.strided, pin_memory=False):
+        if dtype is None:
+            dtype = self.dtype
+        if device is None:
+            device = self.device
+        return torch.empty(*size, dtype=dtype, device=device, requires_grad=requires_grad, pin_memory=pin_memory)
 
     # Tensor.new_ones
-
+    def new_ones(self, size, *, dtype=None, device=None, requires_grad=False, layout=torch.strided, pin_memory=False):
+        if dtype is None:
+            dtype = self.dtype
+        if device is None:
+            device = self.device
+        return torch.ones(*size, dtype=dtype, device=device, requires_grad=requires_grad, pin_memory=pin_memory)
 
     # Tensor.new_zeros
-
+    def new_zeros(self, size, *, dtype=None, device=None, requires_grad=False, layout=torch.strided, pin_memory=False):
+        if dtype is None:
+            dtype = self.dtype
+        if device is None:
+            device = self.device
+        return torch.zeros(*size, dtype=dtype, device=device, requires_grad=requires_grad, pin_memory=pin_memory)
 
     # Tensor.ndim
     @property
@@ -313,208 +337,256 @@ class Tensor(metaclass=TensorMeta):
 
     def ndimension(self):
         return self.ndim
-    # Tensor.real
 
+    # Tensor.real
 
     # Tensor.imag
 
     # Tensor.nbytes
-
+    def nbytes(self):
+        return self._data._nbytes
 
     # Tensor.itemsize
-
+    @property
+    def itemsize(self):
+        return self._data._itemsize
 
     # Tensor.abs
-
+    def abs(self):
+        return torch.abs(self)
 
     # Tensor.abs_
-
+    def abs_(self):
+        return self.copy_(torch.abs(input))
 
     # Tensor.absolute
-
+    absolute = abs
 
     # Tensor.absolute_
-
+    absolute_ = abs_
 
     # Tensor.acos
-
+    def acos(self):
+        return torch.acos(self)
 
     # Tensor.acos_
-
+    def acos_(self):
+        return self.copy_(torch.acos(input))
 
     # Tensor.arccos
-
+    arccos = acos
 
     # Tensor.arccos_
-
+    arccos_ = acos_
 
     # Tensor.add
     def add(self, other, *, alpha=1):
-        return torch.ops.add(self, other, alpha=alpha)
+        return torch.add(self, other, alpha=alpha)
 
     # Tensor.add_
     def add_(self, other, *, alpha=1):
-        out = torch.ops.add(self, other, alpha=alpha)
-        self.data = out
+        return self.copy_(torch.add(self, other, alpha=alpha))
 
     # Tensor.addbmm
-
+    def addbmm(self, batch1, batch2, *, beta=1, alpha=1):
+        return torch.addbmm(self, batch1, batch2, beta=beta, alpha=alpha)
 
     # Tensor.addbmm_
-
+    def addbmm_(self, batch1, batch2, *, beta=1, alpha=1):
+        return self.copy_(torch.addbmm(self, batch1, batch2, beta=beta, alpha=alpha))
 
     # Tensor.addcdiv
+    def addcdiv(self, tensor1, tensor2, *, value=1):
+        return torch.addcdiv(self, tensor1, tensor2, value=value)
 
     # Tensor.addcdiv_
-
+    def addcdiv_(self, tensor1, tensor2, *, value=1):
+        return self.copy_(torch.addcdiv(self, tensor1, tensor2, value=value))
 
     # Tensor.addcmul
-
+    def addcmul(self, tensor1, tensor2, *, value=1):
+        return torch.addcmul(self, tensor1, tensor2, value=value)
 
     # Tensor.addcmul_
-
+    def addcmul_(self, tensor1, tensor2, *, value=1):
+        return self.copy_(torch.addcmul(self, tensor1, tensor2, value=value))
 
     # Tensor.addmm
-
+    def addmm(self, mat1, mat2, *, beta=1, alpha=1):
+        return torch.addmm(self, mat1, mat2, beta=beta, alpha=alpha)
 
     # Tensor.addmm_
-
+    def addmm_(self, mat1, mat2, *, beta=1, alpha=1):
+        return self.copy_(torch.addmm(self, mat1, mat2, beta=beta, alpha=alpha))
 
     # Tensor.sspaddmm
 
 
     # Tensor.addmv
-
+    def addmv(self, mat, vec, *, beta=1, alpha=1):
+        return torch.addmv(self, mat, vec, beta=beta, alpha=alpha)
 
     # Tensor.addmv_
-
+    def addmv_(self, mat, vec, *, beta=1, alpha=1):
+        return self.copy_(torch.addmv(self, mat, vec, beta=beta, alpha=alpha))
 
     # Tensor.addr
-
 
     # Tensor.addr_
 
 
     # Tensor.adjoint
 
-
     # Tensor.allclose
-
+    def allclose(self, other, rtol=1e-05, atol=1e-08, equal_nan=False):
+        return torch.allclose(self, other, rtol, atol, equal_nan)
 
     # Tensor.amax
-
+    def amax(self, dim=None, keepdim=False):
+        return torch.amax(self, dim, keepdim)
 
     # Tensor.amin
-
+    def amin(self, dim=None, keepdim=False):
+        return torch.amin(self, dim, keepdim)
 
     # Tensor.aminmax
-
+    def aminmax(self, dim=None, keepdim=False):
+        return torch.aminmax(self, dim=dim, keepdim=keepdim)
 
     # Tensor.angle
 
 
     # Tensor.apply_
-
+    def apply_(self, callable):
+        return self.copy_(callable(self))
 
     # Tensor.argmax
     def argmax(self, dim=None, keepdim=False):
-        out = torch.ops.argmax(self, dim, keepdim)
+        out = torch.argmax(self, dim, keepdim)
         return out
 
     # Tensor.argmin
-
+    def argmin(self, dim=None, keepdim=False):
+        out = torch.argmin(self, dim, keepdim)
+        return out
 
     # Tensor.argsort
-
+    def argsort(self, dim=-1, descending=False):
+        return torch.argsort(self, dim=-1, descending=False)
 
     # Tensor.argwhere
-
+    def argwhere(self):
+        return torch.argwhere(self)
 
     # Tensor.asin
-
+    def asin(self):
+        return torch.asin(self)
 
     # Tensor.asin_
-
+    def asin_(self):
+        return self.copy_(torch.asin(self))
 
     # Tensor.arcsin
-
+    arcsin = asin
 
     # Tensor.arcsin_
-
+    arcsin_ = asin_
 
     # Tensor.as_strided
-
+    def as_strided(self, size, stride, storage_offset=None):
+        return torch.as_strided(self, size, stride, storage_offset)
 
     # Tensor.atan
-
+    def atan(self):
+        return torch.atan(self)
 
     # Tensor.atan_
-
+    def atan_(self):
+        return self.copy_(torch.atan(self))
 
     # Tensor.arctan
-
+    arctan = atan
 
     # Tensor.arctan_
-
+    arctan_ = atan_
 
     # Tensor.atan2
-
+    def atan2(self, other):
+        return torch.atan2(self, other)
 
     # Tensor.atan2_
-
+    def atan2_(self, other):
+        return self.copy_(torch.atan2(self, other))
 
     # Tensor.arctan2
-
+    arctan2 = atan2
 
     # Tensor.arctan2_
-
+    arctan2_ = atan2_
 
     # Tensor.all
-
+    def all(self, dim=None, keepdim=False):
+        return torch.all(self, dim, keepdim)
 
     # Tensor.any
+    def any(self, dim=None, keepdim=False):
+        return torch.any(self, dim, keepdim)
 
     # Tensor.baddbmm
-
+    def baddbmm(self, batch1, batch2, *, beta=1, alpha=1):
+        return torch.baddbmm(self, batch1, batch2, beta=beta, alpha=alpha)
 
     # Tensor.baddbmm_
-
+    def baddbmm_(self, batch1, batch2, *, beta=1, alpha=1):
+        return self.copy_(torch.baddbmm(self, batch1, batch2, beta=beta, alpha=alpha))
 
     # Tensor.bernoulli
-
+    def bernoulli(self, *, generator=None):
+        return torch.bernoulli(self, generator=generator)
 
     # Tensor.bernoulli_
-
+    def bernoulli_(self, *, generator=None):
+        return self.copy_(torch.bernoulli(self, generator=generator))
 
     # Tensor.bfloat16
-
+    def bfloat16(self):
+        return self.to(torch.bfloat16)
 
     # Tensor.bincount
-
+    def bincount(self, weight=None, minlength=0):
+        return torch.bincount(self, weight, minlength)
 
     # Tensor.bitwise_not
-
+    def bitwise_not(self):
+        return torch.bitwise_not(self)
 
     # Tensor.bitwise_not_
-
+    def bitwise_not_(self):
+        return self.copy_(torch.bitwise_not(self))
 
     # Tensor.bitwise_and
-
+    def bitwise_and(self, other):
+        return torch.bitwise_and(self, other)
 
     # Tensor.bitwise_and_
-
+    def bitwise_and_(self, other):
+        return self.copy_(torch.bitwise_and(self, other))
 
     # Tensor.bitwise_or
-
+    def bitwise_or(self, other):
+        return torch.bitwise_or(self, other)
 
     # Tensor.bitwise_or_
-
+    def bitwise_or_(self, other):
+        return self.copy_(torch.bitwise_or(self, other))
 
     # Tensor.bitwise_xor
-
+    def bitwise_xor(self, other):
+        return torch.bitwise_xor(self, other)
 
     # Tensor.bitwise_xor_
-
+    def bitwise_xor_(self, other):
+        return self.copy_(torch.bitwise_xor(self, other))
 
     # Tensor.bitwise_left_shift
 
@@ -529,30 +601,36 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.bmm
-
+    def bmm(self, batch2):
+        return torch.bmm(self, batch2)
 
     # Tensor.bool
-
+    def bool(self):
+        return self.to(torch.bool)
 
     # Tensor.byte
-
+    def byte(self):
+        return self.to(torch.uint8)
 
     # Tensor.broadcast_to
     def broadcast_to(self, shape):
         raise NotImplementedError
-        # return torch.ops.broadcast_to(self, shape)
+        # return torch.broadcast_to(self, shape)
 
     # Tensor.cauchy_
 
 
     # Tensor.ceil
-
+    def ceil(self):
+        return torch.ceil(self)
 
     # Tensor.ceil_
-
+    def ceil(self):
+        return self.copy_(torch.ceil(self))
 
     # Tensor.char
-
+    def char(self):
+        return self.to(torch.int8)
 
     # Tensor.cholesky
 
@@ -565,35 +643,41 @@ class Tensor(metaclass=TensorMeta):
 
     # Tensor.chunk
     def chunk(self, chunks, dim=0):
-        return torch.ops.chunk(self, chunks, dim)
+        return torch.chunk(self, chunks, dim)
 
     # Tensor.clamp
-
+    def clamp(self, min=None, max=None):
+        return torch.clamp(self, min, max)
 
     # Tensor.clamp_
-
+    def clamp_(self, min=None, max=None):
+        return self.copy_(torch.clamp(self, min, max))
 
     # Tensor.clip
-
+    def clip(self, min=None, max=None):
+        return torch.clip(self, min, max)
 
     # Tensor.clip_
-
+    def clip_(self, min=None, max=None):
+        return self.copy_(torch.clip(self, min, max))
 
     # Tensor.clone
     def clone(self):
-        return deepcopy(self)
+        return torch.clone(self)
 
     # Tensor.contiguous
     def contiguous(self):
-        return self
+        return torch.contiguous(self)
 
     # Tensor.copy_
     def copy_(self, value):
-        value = value.to(self.dtype)
-        return torch.copy_(self, value)
+        if self.dtype != value.dtype:
+            value = value.to(self.dtype)
+        return torch.inplace_copy(self, value)
 
     # Tensor.conj
-
+    def conj(self):
+        return torch.conj(self)
 
     # Tensor.conj_physical
 
@@ -614,45 +698,46 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.cos
-
+    def cos(self):
+        return torch.cos(self)
 
     # Tensor.cos_
-
+    def cos_(self):
+        return self.copy_(torch.cos(self))
 
     # Tensor.cosh
-
+    def cosh(self):
+        return torch.cosh(self)
 
     # Tensor.cosh_
-
+    def cosh_(self):
+        return self.copy_(torch.cosh(self))
 
     # Tensor.corrcoef
 
 
     # Tensor.count_nonzero
-
+    def count_nonzero(self, dim=None):
+        return torch.count_nonzero(self, dim)
 
     # Tensor.cov
 
 
     # Tensor.acosh
-
+    def acosh(self):
+        return torch.acosh(self)
 
     # Tensor.acosh_
-
+    def acosh_(self):
+        return self.copy_(torch.acosh(self))
 
     # Tensor.arccosh
-
+    arccosh = acosh
 
     # Tensor.arccosh_
-
-
-    # Tensor.cpu
-
+    arccosh_ = acosh_
 
     # Tensor.cross
-
-
-    # Tensor.cuda
 
 
     # Tensor.logcumsumexp
@@ -671,9 +756,12 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.cumsum
+    def cumsum(self, dim, dtype=None):
+        return torch.cumsum(self, dim, dtype)
 
     # Tensor.cumsum_
-
+    def cumsum_(self, dim, dtype=None):
+        return self.copy_(torch.cumsum(self, dim, dtype))
 
     # Tensor.chalf
 
@@ -685,10 +773,12 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.data_ptr
-
+    def data_ptr(self):
+        return self._data.data_ptr()
 
     # Tensor.deg2rad
-
+    def deg2rad(self):
+        return torch.deg2rad(self)
 
     # Tensor.dequantize
 
@@ -699,14 +789,9 @@ class Tensor(metaclass=TensorMeta):
     # Tensor.dense_dim
 
 
-    # Tensor.detach
-
-
-    # Tensor.detach_
-
-
     # Tensor.diag
-
+    def diag(self):
+        return torch.diag(self)
 
     # Tensor.diag_embed
 
@@ -715,6 +800,8 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.diagonal
+    def diagnoal(self, offset=0, dim1=0, dim2=1):
+        return torch.diagonal(self, offset, dim1, dim2)
 
 
     # Tensor.diagonal_scatter
@@ -737,9 +824,6 @@ class Tensor(metaclass=TensorMeta):
     # Tensor.digamma_
 
 
-    # Tensor.dim
-
-
     # Tensor.dim_order
 
 
@@ -748,22 +832,25 @@ class Tensor(metaclass=TensorMeta):
 
     # Tensor.div
     def div(self, other):
-        return torch.ops.div(self, other)
+        return torch.div(self, other)
 
     # Tensor.div_
-
+    def div_(self, other):
+        return self.copy_(torch.div(self, other))
 
     # Tensor.divide
-
+    divide = div
 
     # Tensor.divide_
-
+    divide_ = div_
 
     # Tensor.dot
-
+    def dot(self, other):
+        return torch.dot(self, other)
 
     # Tensor.double
-
+    def double(self):
+        return self.to(torch.float64)
 
     # Tensor.dsplit
 
@@ -774,45 +861,58 @@ class Tensor(metaclass=TensorMeta):
 
     # Tensor.eq
     def eq(self, other):
-        return torch.ops.eq(self, other)
+        return torch.eq(self, other)
 
     # Tensor.eq_
     def eq_(self, other):
-        out = torch.ops.eq(self, other)
-        self.data = out
+        return self.copy_(torch.eq(self, other))
 
     # Tensor.equal
     def equal(self, other):
-        return torch.ops.eq(self, other)
+        return torch.eq(self, other)
 
     # Tensor.erf
-
+    def erf(self):
+        return torch.erf(self)
 
     # Tensor.erf_
-
+    def erf_(self):
+        return self.copy_(torch.erf(self))
 
     # Tensor.erfc
-
+    def erfc(self):
+        return torch.erfc(self)
 
     # Tensor.erfc_
-
+    def erfc_(self):
+        return self.copy_(torch.erfc(self))
 
     # Tensor.erfinv
+    def erfinv(self):
+        return torch.erfinv(self)
 
 
     # Tensor.erfinv_
-
+    def erfinv_(self):
+        return self.copy_(torch.erfinv(self))
 
     # Tensor.exp
-
+    def exp(self):
+        return torch.exp(self)
 
     # Tensor.exp_
+    def exp_(self):
+        return self.copy_(torch.exp(self))
 
 
     # Tensor.expm1
+    def expm1(self):
+        return torch.expm1(self)
 
 
     # Tensor.expm1_
+    def expm1_(self):
+        return self.copy_(torch.expm1(self))
 
 
     # Tensor.expand
@@ -822,7 +922,8 @@ class Tensor(metaclass=TensorMeta):
         return self.broadcast_to(size)
 
     # Tensor.expand_as
-
+    def expand_as(self, other):
+        return self.expand(other.size())
 
     # Tensor.exponential_
 
@@ -834,14 +935,17 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.fill_
-
+    def fill_(self, value):
+        torch.inplace_fill(value)
+        return self
 
     # Tensor.flatten
     def flatten(self, start_dim=0, end_dim=-1):
-        return torch.ops.flatten(self, start_dim, end_dim)
+        return torch.flatten(self, start_dim, end_dim)
 
     # Tensor.flip
-
+    def flip(self, dims):
+        return torch.flip(self, dims)
 
     # Tensor.fliplr
 
@@ -850,43 +954,57 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.float
-
+    def float(self):
+        return self.to(torch.float32)
 
     # Tensor.float_power
-
+    def float_power(self, exponent):
+        return torch.float_power(self, exponent)
 
     # Tensor.float_power_
-
+    def float_power_(self, exponent):
+        return self.copy_(torch.float_power(self, exponent))
 
     # Tensor.floor
-
+    def floor(self):
+        return torch.floor(self)
 
     # Tensor.floor_
-
+    def floor_(self):
+        return self.copy_(torch.floor(self))
 
     # Tensor.floor_divide
-
+    def floor_divide(self, other):
+        return torch.floor_divide(self, other)
 
     # Tensor.floor_divide_
+    def floor_divide_(self, other):
+        return self.copy_(torch.floor_divide(self, other))
 
 
     # Tensor.fmod
-
+    def fmod(self, other):
+        return torch.fmod(self, other)
 
     # Tensor.fmod_
-
+    def fmod_(self, other):
+        return self.copy_(torch.fmod(self, other))
 
     # Tensor.frac
-
+    def frac(self):
+        return torch.frac(self)
 
     # Tensor.frac_
+    def frac_(self):
+        return self.copy_(torch.frac(self))
 
 
     # Tensor.frexp
 
 
     # Tensor.gather
-
+    def gather(self, dim, index):
+        return torch.gather(self, dim, index)
 
     # Tensor.gcd
 
@@ -895,15 +1013,18 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.ge
-
+    def ge(self, other):
+        return torch.ge(self, other)
 
     # Tensor.ge_
-
+    def ge_(self, other):
+        return self.copy_(torch.ge(self, other))
 
     # Tensor.greater_equal
-
+    greater_equal = ge
 
     # Tensor.greater_equal_
+    greater_equal_ = ge_
 
 
     # Tensor.geometric_
@@ -916,25 +1037,31 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.get_device
-
+    def get_device(self):
+        return self.device.index
 
     # Tensor.gt
-
+    def gt(self, other):
+        return torch.gt(self, other)
 
     # Tensor.gt_
-
+    def gt_(self, other):
+        return self.copy_(torch.gt(self, other))
 
     # Tensor.greater
-
+    greater = gt
 
     # Tensor.greater_
+    greater_ = gt_
 
 
     # Tensor.half
-
+    def half(self):
+        return self.to(torch.float16)
 
     # Tensor.hardshrink
-
+    def hardshrink(self, lambd=0.5):
+        return torch.nn.functional.hardshrink(self, lambd)
 
     # Tensor.heaviside
 
@@ -973,10 +1100,12 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.index_add_
-
+    def index_add_(self, dim, index, source, *, alpha=1):
+        return self.copy_(torch.index_add(self, dim, source, alpha=alpha))
 
     # Tensor.index_add
-
+    def index_add(self, dim, index, source, *, alpha=1):
+        return torch.index_add(self, dim, source, alpha=alpha)
 
     # Tensor.index_copy_
 
@@ -1002,7 +1131,8 @@ class Tensor(metaclass=TensorMeta):
     # Tensor.index_reduce
 
     # Tensor.index_select
-
+    def index_select(self, dim, index):
+        return torch.index_select(self, dim, index)
 
     # Tensor.indices
 
@@ -1011,7 +1141,8 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.int
-
+    def int(self):
+        return self.to(torch.int64)
 
     # Tensor.int_repr
 
@@ -1020,13 +1151,16 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.isclose
-
+    def isclose(self, other, rtol=1e-05, atol=1e-08, equal_nan=False):
+        return torch.isclose(self, other, rtol, atol, equal_nan)
 
     # Tensor.isfinite
-
+    def isfinite(self):
+        return torch.isfinite(self)
 
     # Tensor.isinf
-
+    def isinf(self):
+        return torch.isinf(self)
 
     # Tensor.isposinf
 
@@ -1035,7 +1169,8 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.isnan
-
+    def isnan(self):
+        return torch.isnan(self)
 
     # Tensor.is_contiguous
     def is_contiguous(self):
@@ -1086,7 +1221,7 @@ class Tensor(metaclass=TensorMeta):
 
     # Tensor.item
     def item(self):
-        return self.numpy().item()
+        return self._data._item()
 
     # Tensor.kthvalue
 
@@ -1104,21 +1239,27 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.le
-
+    def le(self, other):
+        return torch.le(self, other)
 
     # Tensor.le_
-
+    def le_(self, other):
+        return self.copy_(torch.le(self, other))
 
     # Tensor.less_equal
-
+    less_equal = le
 
     # Tensor.less_equal_
+    less_equal_ = le_
 
 
     # Tensor.lerp
-
+    def lerp(self, end, weight):
+        return torch.lerp(self, end, weight)
 
     # Tensor.lerp_
+    def lerp_(self, end, weight):
+        return self.copy_(torch.lerp(self, end, weight))
 
 
     # Tensor.lgamma
@@ -1128,30 +1269,43 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.log
-
+    def log(self):
+        return torch.log(self)
 
     # Tensor.log_
-
+    def log_(self):
+        return self.copy_(torch.log(self))
 
     # Tensor.logdet
 
 
     # Tensor.log10
+    def log10(self):
+        return torch.log10(self)
 
 
     # Tensor.log10_
-
+    def log10_(self):
+        return self.copy_(torch.log10(self))
 
     # Tensor.log1p
+    def log1p(self):
+        return torch.log1p(self)
 
 
     # Tensor.log1p_
+    def log1p_(self):
+        return self.copy_(torch.log1p(self))
 
 
     # Tensor.log2
+    def log2(self):
+        return torch.log2(self)
 
 
     # Tensor.log2_
+    def log2_(self):
+        return self.copy_(torch.log2(self))
 
 
     # Tensor.log_normal_
@@ -1164,31 +1318,45 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.logsumexp
-
+    def logsumexp(self, dim, keepdim=False):
+        return torch.logsumexp(self, dim, keepdim)
 
     # Tensor.logical_and
-
+    def logical_and(self, other):
+        return torch.logical_and(self, other)
 
     # Tensor.logical_and_
+    def logical_and_(self, other):
+        return self.copy_(torch.logical_and(self, other))
 
 
     # Tensor.logical_not
+    def logical_not(self):
+        return torch.logical_not(self)
 
 
     # Tensor.logical_not_
+    def logical_not_(self):
+        return self.copy_(torch.logical_not(self))
 
 
     # Tensor.logical_or
+    def logical_or(self, other):
+        return torch.logical_or(self, other)
 
 
     # Tensor.logical_or_
+    def logical_or_(self, other):
+        return self.copy_(torch.logical_or(self, other))
 
 
     # Tensor.logical_xor
-
+    def logical_xor(self, other):
+        return torch.logical_xor(self, other)
 
     # Tensor.logical_xor_
-
+    def logical_xor_(self, other):
+        return self.copy_(torch.logical_xor(self, other))
 
     # Tensor.logit
 
@@ -1201,16 +1369,18 @@ class Tensor(metaclass=TensorMeta):
         return self.to(torch.int64)
 
     # Tensor.lt
-
+    def lt(self, other):
+        return torch.lt(self, other)
 
     # Tensor.lt_
-
+    def lt_(self, other):
+        return self.copy_(torch.lt(self, other))
 
     # Tensor.less
-
+    less = lt
 
     # Tensor.less_
-
+    less_ = lt_
 
     # Tensor.lu
 
@@ -1231,17 +1401,20 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.masked_fill_
-
+    def masked_fill_(self, mask, value):
+        return self.copy_(torch.masked_fill(self, mask, value))
 
     # Tensor.masked_fill
     def masked_fill(self, mask, value):
         return torch.masked_fill(self, mask, value)
 
     # Tensor.masked_select
-
+    def masked_select(self, mask):
+        return torch.masked_select(self, mask)
 
     # Tensor.matmul
-
+    def matmul(self, other):
+        return torch.matmul(self, other)
 
     # Tensor.matrix_power
 
@@ -1251,14 +1424,15 @@ class Tensor(metaclass=TensorMeta):
 
     # Tensor.max
     def max(self, dim=None, keepdim=False):
-        return torch.ops.max(self, dim, keepdim)
+        return torch.max(self, dim, keepdim)
 
     # Tensor.maximum
-
+    def maximum(self, other):
+        return torch.maximum(self, other)
 
     # Tensor.mean
     def mean(self, dim=None, keepdim=False, *, dtype=None):
-        return torch.ops.mean(self, dim, keepdim, dtype=dtype)
+        return torch.mean(self, dim, keepdim, dtype=dtype)
 
     # Tensor.module_load
 
@@ -1267,50 +1441,59 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.median
-
+    def median(self, dim=-1, keepdim=False):
+        return torch.median(self, dim, keepdim)
 
     # Tensor.nanmedian
 
 
     # Tensor.min
     def min(self, dim=None, keepdim=False):
-        return torch.ops.min(self, dim, keepdim)
+        return torch.min(self, dim, keepdim)
 
     # Tensor.minimum
-
+    def minimum(self, other):
+        return torch.minimum(self, other)
 
     # Tensor.mm
-
+    mm = matmul
 
     # Tensor.smm
 
 
     # Tensor.mode
-
+    def mode(self, dim=None, keepdim=False):
+        return torch.mode(self, dim, keepdim)
 
     # Tensor.movedim
-
+    def movedim(self, source, destination):
+        return torch.movedim(source, destination)
 
     # Tensor.moveaxis
-
+    moveaxis = movedim
 
     # Tensor.msort
-
+    def msort(self):
+        return torch.msort(self)
 
     # Tensor.mul
-
+    def mul(self, other):
+        return torch.mul(self, other)
 
     # Tensor.mul_
-
+    def mul_(self, other):
+        return self.copy_(torch.mul(self, other))
 
     # Tensor.multiply
-
+    multiply = mul
 
     # Tensor.multiply_
+    multiply_ = mul_
 
 
     # Tensor.multinomial
-
+    def multinomial(self, num_samples, replacement=False, *, generator=None):
+        return torch.multinomial(self, num_samples, replacement, generator=generator)
 
     # Tensor.mv
 
@@ -1322,49 +1505,61 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.nansum
-
+    def nansum(self, dim=None, keepdim=False, *, dtype=None):
+        return torch.nansum(self, dim, keepdim, dtype=dtype)
 
     # Tensor.narrow
-
+    def narrow(self, dim, start, length):
+        return torch.narrow(self, dim, start, length)
 
     # Tensor.narrow_copy
-
-
-    # Tensor.ndimension
-
+    def narrow_copy(self, dimension, start, length):
+        return torch.narrow(self, dimension, start, length).clone()
 
     # Tensor.nan_to_num
-
+    def nan_to_num(self, nan=0.0, posinf=None, neginf=None):
+        return torch.nan_to_num(self, nan, posinf, neginf)
 
     # Tensor.nan_to_num_
-
+    def nan_to_num_(self, nan=0.0, posinf=None, neginf=None):
+        return self.copy_(torch.nan_to_num(self, nan, posinf, neginf))
 
     # Tensor.ne
-
+    def ne(self, other):
+        return torch.ne(self, other)
 
     # Tensor.ne_
-
+    def ne_(self, other):
+        return self.copy_(torch.ne(self, other))
 
     # Tensor.not_equal
-
+    not_equal = ne
 
     # Tensor.not_equal_
+    not_equal_ = ne_
 
 
     # Tensor.neg
-
+    def neg(self):
+        return torch.neg(self)
 
     # Tensor.neg_
-
+    def neg_(self):
+        return self.copy_(torch.neg(self))
 
     # Tensor.negative
-
+    negative = neg
 
     # Tensor.negative_
+    negative_ = neg_
 
+
+    # Tensor.numel
+    def numel(self):
+        return self._data._size
 
     # Tensor.nelement
-
+    nelement = numel
 
     # Tensor.nextafter
 
@@ -1373,16 +1568,16 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.nonzero
-
+    def nonzero(self):
+        return torch.nonzero(self)
 
     # Tensor.norm
-
+    def norm(self, p='fro', dim=None, keepdim=False, dtype=None):
+        return torch.norm(self, p, dim, keepdim, dtype)
 
     # Tensor.normal_
-
-
-    # Tensor.numel
-
+    def normal_(self, mean=0, std=1, *, generator=None):
+        return torch.normal_(self, mean, std, generator=generator)
 
     # Tensor.numpy
     def numpy(self):
@@ -1398,11 +1593,12 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.outer
-
+    def outer(self, vec2):
+        return torch.outer(self, vec2)
 
     # Tensor.permute
     def permute(self, *dims):
-        return torch.ops.permute(self, dims)
+        return torch.permute(self, dims)
 
     # Tensor.pin_memory
 
@@ -1417,16 +1613,21 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.positive
-
+    def positive(self):
+        return self
 
     # Tensor.pow
-
+    def pow(self, exponent):
+        return torch.pow(self, exponent)
 
     # Tensor.pow_
+    def pow_(self, exponent):
+        return self.copy_(torch.pow(self, exponent))
 
 
     # Tensor.prod
-
+    def prod(self, dim=None, keepdim=False, dtype=None):
+        return torch.prod(self, dim, keepdim, dtype=dtype)
 
     # Tensor.put_
 
@@ -1461,16 +1662,16 @@ class Tensor(metaclass=TensorMeta):
     # Tensor.rad2deg
 
 
-    # Tensor.random_
-
-
     # Tensor.ravel
 
 
     # Tensor.reciprocal
-
+    def reciprocal(self):
+        return torch.reciprocal(self)
 
     # Tensor.reciprocal_
+    def reciprocal_(self):
+        return self.copy_(torch.reciprocal(self))
 
 
     # Tensor.record_stream
@@ -1484,10 +1685,12 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.remainder
-
+    def remainder(self, other):
+        return torch.remainder(self, other)
 
     # Tensor.remainder_
-
+    def remainder_(self, other):
+        return self.copy_(torch.remainder(self, other))
 
     # Tensor.renorm
 
@@ -1496,68 +1699,92 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.repeat
-
+    def repeat(self, *repeats):
+        return torch.tile(self, repeats)
 
     # Tensor.repeat_interleave
-
+    def repeat_interleave(self, repeats):
+        return torch.repeat_interleave(self, repeats)
 
     # Tensor.reshape
     def reshape(self, *shape):
-        return torch.ops.reshape(self, *shape)
+        return torch.reshape(self, *shape)
 
     # Tensor.reshape_as
-
+    def reshape_as(self, other):
+        return self.reshape(*other.shape)
 
     # Tensor.resize_
-
+    def resize_(self, *shape):
+        self.data = torch.reshape(self, *shape)
+        return self
 
     # Tensor.resize_as_
-
-
-    # Tensor.retain_grad
-
+    def resize_as_(self, other):
+        self.data = torch.reshape(self, *other.shape)
+        return self
 
     # Tensor.retains_grad
-
+    @property
+    def retains_grad(self):
+        return not self.is_leaf and self._retain_grad
 
     # Tensor.roll
-
+    def roll(self, shifts, dims=None):
+        return torch.roll(self, shifts, dims)
 
     # Tensor.rot90
 
 
     # Tensor.round
-
+    def round(self):
+        return torch.round(self)
 
     # Tensor.round_
+    def round_(self):
+        return self.copy_(torch.round(self))
 
 
     # Tensor.rsqrt
-
+    def rsqrt(self):
+        return torch.rsqrt(self)
 
     # Tensor.rsqrt_
+    def rsqrt_(self):
+        return self.copy_(torch.rsqrt(self))
 
 
     # Tensor.scatter
-
+    def scatter(self, dim, index, src):
+        return torch.scatter(self, dim, index, src)
 
     # Tensor.scatter_
+    def scatter(self, dim, index, src):
+        return self.copy_(torch.scatter(self, dim, index, src))
 
 
     # Tensor.scatter_add_
-
+    def scatter_add_(self, dim, index, src):
+        return self.copy_(torch.scatter_add(self, dim, index, src))
 
     # Tensor.scatter_add
+    def scatter_add(self, dim, index, src):
+        return torch.scatter_add(self, dim, index, src)
 
 
     # Tensor.scatter_reduce_
+    def scatter_reduce_(self, dim, index, src):
+        return self.copy_(torch.scatter_reduce(self, dim, index, src))
 
 
     # Tensor.scatter_reduce
+    def scatter_reduce(self, dim, index, src):
+        return torch.scatter_reduce(self, dim, index, src)
 
 
     # Tensor.select
-
+    def select(self, dim, index):
+        return torch.select(self, dim, index)
 
     # Tensor.select_scatter
 
@@ -1569,18 +1796,24 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.short
-
+    def short(self):
+        return self.to(torch.int16)
 
     # Tensor.sigmoid
-
+    def sigmoid(self):
+        return torch.sigmoid(self)
 
     # Tensor.sigmoid_
-
+    def sigmoid_(self):
+        return self.copy_(torch.sigmoid(self))
 
     # Tensor.sign
-
+    def sign(self):
+        return torch.sign(self)
 
     # Tensor.sign_
+    def sign_(self):
+        return self.copy_(torch.sign(self))
 
 
     # Tensor.signbit
@@ -1593,36 +1826,48 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.sin
-
+    def sin(self):
+        return torch.sin(self)
 
     # Tensor.sin_
+    def sin_(self):
+        return self.copy_(torch.sin(self))
 
 
     # Tensor.sinc
+    def sinc(self):
+        return torch.sinc(self)
 
 
     # Tensor.sinc_
-
+    def sinc_(self):
+        return self.copy_(torch.sinc(self))
 
     # Tensor.sinh
+    def sinh(self):
+        return torch.sinh(self)
 
 
     # Tensor.sinh_
+    def sinh_(self):
+        return self.copy_(torch.sinh(self))
 
 
     # Tensor.asinh
+    def asinh(self):
+        return torch.asinh(self)
 
 
     # Tensor.asinh_
+    def asinh_(self):
+        return self.copy_(torch.asinh(self))
 
 
     # Tensor.arcsinh
-
+    arcsinh_ = asinh
 
     # Tensor.arcsinh_
-
-
-    # Tensor.shape
+    arcsinh_ = asinh_
 
 
     # Tensor.size
@@ -1639,13 +1884,16 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.softmax
-
+    def softmax(self, dim):
+        return torch.softmax(self, dim)
 
     # Tensor.sort
-
+    def sort(self, dim=-1, descending=False):
+        return torch.sort(self, dim=dim, descending=descending)
 
     # Tensor.split
-
+    def split(self, split_size, dim=0):
+        return torch.split(self, split_size, dim)
 
     # Tensor.sparse_mask
 
@@ -1654,26 +1902,35 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.sqrt
-
+    def sqrt(self):
+        return torch.sqrt(self)
 
     # Tensor.sqrt_
+    def sqrt_(self):
+        return self.copy_(torch.sqrt(self))
 
 
     # Tensor.square
+    def square(self):
+        return torch.square(self)
 
 
     # Tensor.square_
-
+    def square_(self):
+        return self.copy_(torch.square(self))
 
     # Tensor.squeeze
     def squeeze(self, dim):
-        return torch.ops.squeeze(self, dim)
+        return torch.squeeze(self, dim)
 
     # Tensor.squeeze_
+    def squeeze_(self, dim):
+        return self.copy_(torch.squeeze(self, dim))
 
 
     # Tensor.std
-
+    def std(self, dim=None, *, correction=1, keepdim=False):
+        return torch.std(self, dim, correction=correction, keepdim=keepdim)
 
     # Tensor.stft
 
@@ -1698,20 +1955,23 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.sub
-
+    def sub(self, other):
+        return torch.sub(self, other)
 
     # Tensor.sub_
+    def sub_(self, other):
+        return self.copy_(torch.sub(self, other))
 
 
     # Tensor.subtract
-
+    subtract = sub
 
     # Tensor.subtract_
-
+    subtract_ = sub_
 
     # Tensor.sum
     def sum(self, dim=None, keepdim=False, dtype=None):
-        return torch.ops.sum(self, dim, keepdim, dtype=dtype)
+        return torch.sum(self, dim, keepdim, dtype=dtype)
 
     # Tensor.sum_to_size
 
@@ -1720,25 +1980,29 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.swapaxes
-
+    def swapaxes(self, dim0, dim1):
+        return torch.swapaxes(self, dim0, dim1)
 
     # Tensor.swapdims
-
+    swapdims = swapaxes
 
     # Tensor.t
-
+    def t(self):
+        return torch.t(self)
 
     # Tensor.t_
-
+    def t_(self):
+        self.data = torch.t(self)
+        return self
 
     # Tensor.tensor_split
 
 
     # Tensor.tile
-
+    def tile(self, dims):
+        return torch.tile(self, dims)
 
     # Tensor.to
-
     def _move_to(self, device, non_blocking=False):
         if self.device == device:
             return self
@@ -1763,50 +2027,65 @@ class Tensor(metaclass=TensorMeta):
                 if out.dtype == arg:
                     return out
                 else:
-                    out = torch.ops.cast(out, arg)
+                    out = torch.cast(out, arg)
             elif isinstance(arg, Tensor):
                 out = Tensor._move_to(out, arg.device, non_blocking)
                 if out.dtype == arg:
                     return out
                 else:
-                    out = torch.ops.cast(out, arg)
+                    out = torch.cast(out, arg)
         return out
 
     # Tensor.take
-
+    def take(self, index):
+        return torch.take(self, index)
 
     # Tensor.take_along_dim
 
 
     # Tensor.tan
-
+    def tan(self):
+        return torch.tan(self)
 
     # Tensor.tan_
+    def tan_(self):
+        return self.copy_(torch.tan(self))
 
 
     # Tensor.tanh
+    def tanh(self):
+        return torch.tanh(self)
 
 
     # Tensor.tanh_
+    def tanh_(self):
+        return self.copy_(torch.tanh(self))
 
 
     # Tensor.atanh
 
+    def atanh(self):
+        return torch.atanh(self)
+
 
     # Tensor.atanh_
+    def atanh_(self):
+        return self.copy_(torch.atanh(self))
 
 
     # Tensor.arctanh
-
+    arctanh = atanh
 
     # Tensor.arctanh_
-
+    arctanh_ = atanh_
 
     # Tensor.tolist
-
+    def tolist(self):
+        return self.numpy().tolist()
 
     # Tensor.topk
-
+    def topk(self, k, dim=None, largest=True, sorted=True):
+        return torch.topk(self, k, dim, largest, sorted)
 
     # Tensor.to_dense
 
@@ -1831,36 +2110,51 @@ class Tensor(metaclass=TensorMeta):
 
     # Tensor.transpose
     def transpose(self, dim0, dim1):
-        return torch.ops.transpose(self, dim0, dim1)
+        return torch.transpose(self, dim0, dim1)
 
     # Tensor.transpose_
-
+    def transpose_(self, dim0, dim1):
+        self.data = torch.transpose(self, dim0, dim1)
+        return self
 
     # Tensor.triangular_solve
 
 
     # Tensor.tril
-
+    def tril(self, diagonal=0):
+        return torch.tril(self, diagonal)
 
     # Tensor.tril_
+    def tril_(self, diagonal=0):
+        return self.copy_(torch.tril(self, diagonal))
 
 
     # Tensor.triu
+    def triu(self, diagonal=0):
+        return torch.triu(self, diagonal)
 
 
     # Tensor.triu_
+    def triu_(self, diagonal=0):
+        return self.copy_(torch.triu(self, diagonal))
 
 
     # Tensor.true_divide
-
+    def true_divide(self, other):
+        return torch.true_divide(self, other)
 
     # Tensor.true_divide_
+    def true_divide_(self, other):
+        return self.copy_(torch.true_divide(self, other))
 
 
     # Tensor.trunc
-
+    def trunc(self):
+        return torch.trunc(self)
 
     # Tensor.trunc_
+    def trunc_(self):
+        return self.copy_(torch.trunc(self))
 
 
     # Tensor.type
@@ -1870,25 +2164,28 @@ class Tensor(metaclass=TensorMeta):
         return self.to(dtype, non_blocking=non_blocking)
 
     # Tensor.type_as
-
+    def type_as(self, tensor):
+        return self.type(tensor.dtype)
 
     # Tensor.unbind
-
+    def unbind(self, dim=0):
+        return torch.unbind(self, dim)
 
     # Tensor.unflatten
     def unflatten(self, dim, sizes):
-        return torch.ops.unflatten(self, dim, sizes)
+        return torch.unflatten(self, dim, sizes)
 
     # Tensor.unfold
     def unfold(self, dimension, size, step):
-        _indices, _dimension = torch.ops.utils._get_unfold_indices(self.shape, dimension, size, step)
-        output = torch.ops.tf_gather(self, _indices, axis=_dimension)
-        return torch.ops.transpose(output, _dimension + 1, -1)
+        _indices, _dimension = torch.utils._get_unfold_indices(self.shape, dimension, size, step)
+        output = torch.gather(self, _dimension, _indices)
+        return torch.transpose(output, _dimension + 1, -1)
 
     # Tensor.uniform_
     def uniform_(self, *args, **kwargs):
-        return torch.ops.uniform_(self, *args, **kwargs)
+        return torch.uniform_(self, *args, **kwargs)
 
+    # Tensor.random_
     def random_(self, *args, **kwargs):
         if len(args) == 1:
             from_ = args[0]
@@ -1920,23 +2217,28 @@ class Tensor(metaclass=TensorMeta):
         return self.uniform_(from_, to_, generator_)
 
     # Tensor.unique
-
+    def unique(self, sorted=True, return_inverse=False, return_counts=False, dim=None):
+        return torch.unique(self, sorted, return_inverse, return_counts, dim)
 
     # Tensor.unique_consecutive
-
+    def unique_consecutive(self, return_inverse=False, return_counts=False, dim=None):
+        return torch.unique_consecutive(self, return_inverse, return_counts, dim)
 
     # Tensor.unsqueeze
     def unsqueeze(self, dim):
         return torch.unsqueeze(self, dim)
 
     # Tensor.unsqueeze_
+    def unsqueeze_(self, dim):
+        return self.copy_(torch.unsqueeze(self, dim))
 
 
     # Tensor.values
 
 
     # Tensor.var
-
+    def var(self, dim=None, *, correction=1, keepdim=False):
+        return torch.var(self, dim, correction=correction, keepdim=keepdim)
 
     # Tensor.vdot
 
@@ -1953,19 +2255,31 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.where
-
+    def where(self, condition, y):
+        return torch.where(condition, self, y)
 
     # Tensor.xlogy
-
+    def xlogy(self, other):
+        return torch.xlogy(self, other)
 
     # Tensor.xlogy_
-
+    def xlogy_(self, other):
+        return self.copy_(torch.xlogy(self, other))
 
     # Tensor.zero_
+    def zero_(self):
+        return torch.inplace_zero(self) 
 
     # Tensor.detach
     def detach(self):
-        return torch.ops.detach(self)
+        return torch.stop_gradient(self)
+
+    # Tensor.detach_
+    def detach_(self):
+        out = torch.stop_gradient(self)
+        self._requires_grad = False
+        self.data = out
+
 
 def tensor(data, *, dtype=None, device=None, requires_grad=False):
     if isinstance(data, Tensor):

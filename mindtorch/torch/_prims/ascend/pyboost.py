@@ -164,3 +164,9 @@ def reverse_v2_npu(*args):
     return pyboost_reverse_v2(reverse_v2_op, args)
 
 __all__.append('reverse_v2_npu')
+
+hard_shrink_op = HShrink().set_device('Ascend')
+def hard_shrink_npu(*args):
+    return pyboost_hshrink(hard_shrink_op, args)
+
+__all__.append('hard_shrink_npu')

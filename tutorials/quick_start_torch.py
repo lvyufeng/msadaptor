@@ -21,8 +21,6 @@ PyTorch has two `primitives to work with data <https://pytorch.org/docs/stable/d
 the ``Dataset``.
 
 """
-import faulthandler
-faulthandler.enable()
 
 import torch
 import torch_npu
@@ -120,7 +118,6 @@ class NeuralNetwork(nn.Module):
 
 model = NeuralNetwork().to(device)
 print(model)
-
 ######################################################################
 # Read more about `building neural networks in PyTorch <buildmodel_tutorial.html>`_.
 #
@@ -144,24 +141,29 @@ optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
 #######################################################################
 # In a single training loop, the model makes predictions on the training dataset (fed to it in batches), and
 # backpropagates the prediction error to adjust the model's parameters.
+import time
 def train(dataloader, model, loss_fn, optimizer):
     size = len(dataloader.dataset)
     model.train()
     for batch, (X, y) in enumerate(dataloader):
-        X, y = X.to(device), y.to(device)
-        # Compute prediction error
-        with torch.autograd.GradientTape() as tape:
-            pred = model(X)
-            loss = loss_fn(pred, y)
-
-        # Backpropagation
-        tape.gradient(loss, model.parameters())
-
-        optimizer.step()
-        optimizer.zero_grad()
-        if batch % 100 == 0:
-            loss, current = loss.item(), (batch + 1) * len(X)
-            print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
+        # s = time.time()
+        # X, y = X.to(device), y.to(device)
+        # # Compute prediction error
+        # pred = model(X)
+        # loss = loss_fn(pred, y)
+        # t = time.time()
+        # # print(loss)
+        # # Backpropagation
+        # loss.backward()
+        # tt = time.time()
+        # optimizer.step()
+        # ttt = time.time()
+        # print(t -s, tt-t, ttt-tt)
+        # optimizer.zero_grad()
+        # if batch % 100 == 0:
+        #     loss, current = loss.item(), (batch + 1) * len(X)
+        #     print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
+        print(1)
 
 ##############################################################################
 # We also check the model's performance against the test dataset to ensure it is learning.
@@ -186,12 +188,29 @@ def test(dataloader, model, loss_fn):
 # parameters to make better predictions. We print the model's accuracy and loss at each epoch; we'd like to see the
 # accuracy increase and the loss decrease with every epoch.
 
-epochs = 5
-for t in range(epochs):
-    print(f"Epoch {t+1}\n-------------------------------")
-    train(train_dataloader, model, loss_fn, optimizer)
-    test(test_dataloader, model, loss_fn)
-print("Done!")
+import cProfile
+import pstats
+from io import StringIO
+
+def train_step():
+    X = torch.rand(64, 1, 28, 28)
+    y = torch.ones(64, dtype=torch.int64)
+    X, y = X.to(device), y.to(device)
+    for _ in range(10000):
+        # Compute prediction error
+        pred = model(X)
+        loss = loss_fn(pred, y)
+
+        # Backpropagation
+        loss.backward()
+
+
+# epochs = 5
+# for t in range(epochs):
+#     print(f"Epoch {t+1}\n-------------------------------")
+#     train(train_dataloader, model, loss_fn, optimizer)
+#     test(test_dataloader, model, loss_fn)
+# print("Done!")
 
 ######################################################################
 # Read more about `Training your model <optimization_tutorial.html>`_.

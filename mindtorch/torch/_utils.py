@@ -1,19 +1,16 @@
 import sys
 import traceback
 
-import mindspore
-from mindspore import Tensor
-from .ops import empty, narrow
-
+import torch
 
 element_size_map = {
-    mindspore.float16: 2,
-    mindspore.float32: 3,
-    mindspore.bfloat16: 2,
-    mindspore.int64: 4,
-    mindspore.uint8: 1,
-    mindspore.int8: 1,
-    mindspore.bool_: 1
+    torch.float16: 2,
+    torch.float32: 3,
+    torch.bfloat16: 2,
+    torch.int64: 4,
+    torch.uint8: 1,
+    torch.int8: 1,
+    torch.bool_: 1
 }
 
 def _element_size(dtype):
@@ -34,7 +31,7 @@ def _flatten_dense_tensors(tensors):
         A contiguous 1D buffer containing input tensors.
     """
     tensors = [tensor.view(-1) for tensor in tensors]
-    return mindspore.mint.cat(tensors)
+    return torch.cat(tensors)
 
 
 def _unflatten_dense_tensors(flat, tensors):
@@ -55,9 +52,9 @@ def _unflatten_dense_tensors(flat, tensors):
     for tensor in tensors:
         numel = tensor.numel()
         if numel == 0:
-            outputs.append(empty(0, flat.dtype))
+            outputs.append(torch.empty(0, flat.dtype))
         else:
-            outputs.append(narrow(flat, 0, offset, numel).view(tensor.shape))
+            outputs.append(torch.narrow(flat, 0, offset, numel).view(tensor.shape))
             offset += numel
     return outputs
 
@@ -70,7 +67,7 @@ def _rebuild_tensor_v2(
     backward_hooks,
     metadata=None,
 ):
-    return Tensor(storage)
+    return torch.Tensor(storage)
 
 class KeyErrorMessage(str):
     r"""str subclass that returns itself in repr"""

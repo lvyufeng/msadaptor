@@ -1102,17 +1102,17 @@ class Module:
                 try:
                     if assign_to_params_buffers:
                         # Shape checks are already done above
-                        if (isinstance(param, Parameter)):
-                            if not isinstance(input_param, Parameter):
-                                input_param = Parameter(input_param, requires_grad=param.requires_grad)
+                        if isinstance(param, torch.nn.Parameter):
+                            if not isinstance(input_param, torch.nn.Parameter):
+                                input_param = torch.nn.Parameter(
+                                    input_param, requires_grad=param.requires_grad
+                                )
                             else:
-                                input_param.requires_grad = param.requires_grad
+                                input_param.requires_grad_(param.requires_grad)
 
                         setattr(self, name, input_param)
                     else:
-                        dtype = param.dtype
                         param.copy_(input_param)
-                        param.set_dtype(dtype)
                 except Exception as ex:
                     action = "copying"
                     error_msgs.append(f'While {action} the parameter named "{key}", '

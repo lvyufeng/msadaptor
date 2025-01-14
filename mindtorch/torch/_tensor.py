@@ -13,6 +13,7 @@ from mindspore._c_expression import typing
 import torch
 from torch.dispatcher import device_map
 from .types import device as device_
+from ._utils import _rebuild_tensor_v2
 
 grad_ = GradOperation(False, True, True)
 
@@ -42,7 +43,6 @@ class Tensor(metaclass=TensorMeta):
     tensor = None
     stub = None
     grad = None
-    fn = None
 
     _user_created = False
     _requires_grad = False
@@ -116,7 +116,7 @@ class Tensor(metaclass=TensorMeta):
 
     @property
     def data(self):
-        return Tensor(self._data)
+        return Tensor(self._data, device=self.device)
 
     @data.setter
     def data(self, other):
@@ -142,7 +142,7 @@ class Tensor(metaclass=TensorMeta):
                 self.tensor.param_info.name = str(uuid.uuid4())
             self.tensor.param_info.requires_grad = requires_grad
         if requires_grad and self.is_leaf and not hasattr('self', 'attach_grad_hook'):
-            # self.attach_grad()
+            self.attach_grad()
             self._retain_grad = True
 
     def attach_grad(self):
@@ -200,6 +200,15 @@ class Tensor(metaclass=TensorMeta):
     def requires_grad_(self, requires_grad=True):
         self.requires_grad = requires_grad
 
+    def __reduce_ex__(self, proto):
+        storage_offset = 0
+        size = self.shape
+        stride = self.stride()
+        requires_grad = False
+        args = (self._data, storage_offset, size, stride, requires_grad, None, None)
+        return (
+            _rebuild_from_type_v2, (_rebuild_tensor_v2, type(self), args, None))
+
     def __hash__(self):
         return hash(id(self))
 
@@ -209,9 +218,9 @@ class Tensor(metaclass=TensorMeta):
         return self.shape[0]
 
     def __repr__(self) -> str:
-        data = self.cpu()._data
+        data = self._data
         data.data_sync(True)
-        return data.__repr__()
+        return data.__repr__()[:-1] + f', device={self.device})'
 
     def __format__(self, format_spec):
         return np.ndarray.__format__(self.numpy(), format_spec)
@@ -267,25 +276,13 @@ class Tensor(metaclass=TensorMeta):
     def __int__(self):
         return int(self._data.asnumpy())
 
+    def __index__(self):
+        return int(self._data.asnumpy())
+
     # def __getattribute__(self, name):
     #     if name.endswith('_') and not name.endswith('__') and self.is_leaf and self.requires_grad and torch.is_grad_enabled():
     #         raise RuntimeError('a leaf Variable that requires grad is being used in an in-place operation.')
     #     return super().__getattribute__(name)
-
-    def backward(self, gradient=None, retain_graph=None, create_graph=False, inputs=None):
-        assert self.requires_grad, "called backward on non-requires-grad tensor"
-        if gradient is None:
-            if self.shape == ():
-                gradient = tensor(1, dtype=self.dtype, device=self.device)
-            else:
-                raise RuntimeError("grad must specified for non-0-tensor")
-        _pynative_executor.end_graph(self.fn, self.data)
-        from torch.executor import weights_dict
-        weights = weights_dict.get(self.fn)
-        _pynative_executor.check_run(grad_, self.fn, weights, None, gradient)
-        grads = _pynative_executor.grad(self.fn, grad_, weights, None, gradient)
-        for param, grad in zip(weights, grads):
-            param.grad = Tensor(grad, device=param.device)
 
     # Tensor.new_tensor
     def new_tensor(self, data, *, dtype=None):
@@ -592,6 +589,7 @@ class Tensor(metaclass=TensorMeta):
 
     # Tensor.copy_
     def copy_(self, value):
+        value = value.to(self.dtype)
         return torch.copy_(self, value)
 
     # Tensor.conj
@@ -1693,6 +1691,10 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.stride
+    def stride(self, dim=None):
+        if dim is None:
+            return self._data.stride()
+        return self._data.stride()[dim]
 
 
     # Tensor.sub
@@ -1758,10 +1760,16 @@ class Tensor(metaclass=TensorMeta):
                 device = device_(arg)
                 out = Tensor._move_to(out, device, non_blocking)
             elif isinstance(arg, mindspore.common.dtype.Type):
-                out = torch.ops.cast(out, arg)
+                if out.dtype == arg:
+                    return out
+                else:
+                    out = torch.ops.cast(out, arg)
             elif isinstance(arg, Tensor):
                 out = Tensor._move_to(out, arg.device, non_blocking)
-                out = torch.ops.cast(out, arg.dtype)
+                if out.dtype == arg:
+                    return out
+                else:
+                    out = torch.ops.cast(out, arg)
         return out
 
     # Tensor.take
@@ -2015,5 +2023,10 @@ dtype_class_map = {
     mindspore.bool_: BoolTensor,
     mindspore.uint8: ByteTensor
 }
+
+def _rebuild_from_type_v2(func, new_type, args, state):
+    ret = func(*args)
+    return ret
+
 
 __all__ = ['tensor', 'is_tensor', 'Tensor']

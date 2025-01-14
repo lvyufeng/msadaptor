@@ -59,18 +59,18 @@ class Parameter(torch.Tensor):
     def __repr__(self):
         return "Parameter containing:\n" + super().__repr__()
 
-    def __reduce_ex__(self, proto):
-        state = torch._utils._get_obj_state(self)
+    # def __reduce_ex__(self, proto):
+    #     state = torch._utils._get_obj_state(self)
 
-        # See Note [Don't serialize hooks]
-        hooks = OrderedDict()
-        if not state:
-            return (
-                torch._utils._rebuild_parameter,
-                (self.data, self.requires_grad, hooks),
-            )
+    #     # See Note [Don't serialize hooks]
+    #     hooks = OrderedDict()
+    #     if not state:
+    #         return (
+    #             torch._utils._rebuild_parameter,
+    #             (self.data, self.requires_grad, hooks),
+    #         )
 
-        return (
-            torch._utils._rebuild_parameter_with_state,
-            (self.data, self.requires_grad, hooks, state),
-        )
+    #     return (
+    #         torch._utils._rebuild_parameter_with_state,
+    #         (self.data, self.requires_grad, hooks, state),
+    #     )

@@ -174,3 +174,5 @@ aclinit.json
 fusion_result.json
 ge_check_op.json
 data/
+*.pth
+kernel_meta/

@@ -6,7 +6,7 @@ def is_floating_point(input):
     return isinstance(input.dtype, typing.Float)
 
 def is_tensor(input):
-    return isinstance(input, torch.Tensor)
+    return type(input) == torch.Tensor or type(input) == torch.nn.Parameter
 
 def numel(input):
     return input.numel()

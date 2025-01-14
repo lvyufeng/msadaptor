@@ -613,9 +613,12 @@ def setitem(a, slice_spec, updates):
     return result_t.astype(a_dtype)
 
 def copy_(self, other):
+    if self.device != other.device:
+        other = other.to(self.device)
     if self.device.type == 'cpu':
-        execute('assign', self, other)
+        # execute('assign', self, other)
         # self._data.assign_value_cpp(other._data)
+        self.data = other
     else:
         execute('inplace_copy', self, other)
     return self

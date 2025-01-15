@@ -283,6 +283,18 @@ class Tensor(metaclass=TensorMeta):
     def __eq__(self, other):
         return torch.equal(self, other)
 
+    def __gt__(self, other):
+        return torch.gt(self, other)
+
+    def __ge__(self, other):
+        return torch.ge(self, other)
+
+    def __lt__(self, other):
+        return torch.lt(self, other)
+
+    def __le__(self, other):
+        return torch.le(self, other)
+
     def __int__(self):
         return int(self.item())
 

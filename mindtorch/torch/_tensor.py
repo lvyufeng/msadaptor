@@ -2324,6 +2324,8 @@ class Tensor(metaclass=TensorMeta):
         self._requires_grad = False
         self.data = out
 
+    def stub_sync(self):
+        return self._data
 
 def tensor(data, *, dtype=None, device=None, requires_grad=False):
     if isinstance(data, Tensor):

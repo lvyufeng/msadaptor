@@ -80,7 +80,7 @@ def mm(input, other):
 
 # outer
 def outer(input, vec2):
-    execute('outer', input, vec2)
+    return execute('outer', input, vec2)
 
 # pinverse
 

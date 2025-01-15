@@ -14,6 +14,7 @@ import torch
 from torch.dispatcher import device_map
 from .types import device as device_
 from ._utils import _rebuild_tensor_v2
+from ._C.size import Size
 
 grad_ = GradOperation(False, True, True)
 
@@ -172,8 +173,8 @@ class Tensor(metaclass=TensorMeta):
         if self.stub:
             if not hasattr(self, "stub_shape"):
                 self.stub_shape = self.stub.get_shape()
-            return self.stub_shape
-        return tuple(self.tensor.shape)
+            return Size(self.stub_shape)
+        return Size(self.tensor.shape)
 
     @property
     def dtype(self):

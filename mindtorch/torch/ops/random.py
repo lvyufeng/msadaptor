@@ -98,6 +98,8 @@ def rand(
 ):
     if device is None:
         device = get_default_device()
+    if isinstance(device, str):
+        device = torch.device(device)
     if dtype is None:
         dtype = get_default_dtype()
     if not generator:
@@ -137,6 +139,9 @@ def rand_like(
 ):
     if device is None:
         device = input.device
+    if isinstance(device, str):
+        device = torch.device(device)
+
     if dtype is None:
         dtype = input.dtype
     seed, offset = default_generator._step(  # pylint: disable=protected-access
@@ -167,6 +172,9 @@ def randint(
         dtype = torch.int64
     if device is None:
         device = get_default_device()
+    if isinstance(device, str):
+        device = torch.device(device)
+
     if not generator:
         generator = default_generator
     seed, offset = generator._step(generator_step_)  # pylint: disable=protected-access
@@ -204,6 +212,9 @@ def randint_like(
         low, high = 0, low
     if device is None:
         device = input.device
+    if isinstance(device, str):
+        device = torch.device(device)
+
     if dtype is None:
         dtype = input.dtype
     seed, offset = default_generator._step(  # pylint: disable=protected-access
@@ -235,6 +246,9 @@ def randn(
 ):
     if device is None:
         device = get_default_device()
+    if isinstance(device, str):
+        device = torch.device(device)
+
     if dtype is None:
         dtype = get_default_dtype()
     if not generator:
@@ -270,6 +284,9 @@ def randn_like(
 ):
     if device is None:
         device = input.device
+    if isinstance(device, str):
+        device = torch.device(device)
+
     if dtype is None:
         dtype = input.dtype
     seed, offset = default_generator._step(  # pylint: disable=protected-access
@@ -300,6 +317,9 @@ def randperm(
 ):
     if device is None:
         device = get_default_device()
+    if isinstance(device, str):
+        device = torch.device(device)
+
     if not generator:
         generator = default_generator
     seed, offset = generator._step(generator_step_)  # pylint: disable=protected-access

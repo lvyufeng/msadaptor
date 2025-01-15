@@ -2165,7 +2165,10 @@ class Tensor(metaclass=TensorMeta):
     # Tensor.type
     def type(self, dtype=None, non_blocking=False):
         if dtype is None:
-            return str(dtype_class_map[self.dtype])
+            dtype_str = str(dtype_class_map[self.dtype])[8:-2]
+            dtype_str = dtype_str.replace('_tensor', self.device.type) \
+                if self.device.type != 'cpu' else dtype_str.replace('._tensor', '')
+            return dtype_str
         return self.to(dtype, non_blocking=non_blocking)
 
     # Tensor.type_as

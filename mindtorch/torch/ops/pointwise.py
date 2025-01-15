@@ -516,12 +516,12 @@ def subtract(input, other):
 
 # tan
 def tan(input):
-    return execute("tan", input, other)
+    return execute("tan", input)
 
 
 # tanh
 def tanh(input):
-    return execute("tanh", input, other)
+    return execute("tanh", input)
 
 
 # true_divide

@@ -266,6 +266,9 @@ class Tensor(metaclass=TensorMeta):
     def __pow__(self, other):
         return torch.pow(self, other)
 
+    def __rpow__(self, other):
+        return torch.pow(self, other)
+
     def __sub__(self, other):
         return torch.sub(self, other)
 

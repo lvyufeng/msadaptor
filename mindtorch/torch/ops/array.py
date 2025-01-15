@@ -248,7 +248,7 @@ def _wrap_index_to_tuple(index):
     if isinstance(index, tuple):
         return index
     if isinstance(index, list):
-        if len(index) < 32 and any(isinstance(i, (torch.Tensor, list, tuple, slice, type(None), Ellipsis)) for i in index):
+        if len(index) < 32 and any(isinstance(i, (torch.Tensor, list, tuple, slice, type(None), type(...))) for i in index):
             return tuple(index)
     return (index,)
 
@@ -266,6 +266,86 @@ def _count_indexed_dims(indexes):
             count += 1
     return count
 
+def _record_tensor_index(index, remain_indexes, dim):
+    """Record indexes remained to be used by aclnnIndex/aclnnIndexPut"""
+    if len(remain_indexes) > dim:
+        remain_indexes[dim] = index
+        return remain_indexes
+
+    while dim > len(remain_indexes):
+        # use empty_tensor with dim_num 9 to indicate unused dim
+        remain_indexes.append(empty_tensor_9d)
+
+    remain_indexes.append(index)
+    return remain_indexes
+
+def _process_dim_in_multi_dim_index(prev_result, orig_tensor, index, dim, indexed_dims, dim_index, remain_indexes,
+                                    prev_shape):
+    """Process dim in multi dim index"""
+    if isinstance(index, bool):
+        result = unsqueeze(prev_result, dim)
+        index_for_bool = tensor_1d if index else empty_tensor_1d
+        _record_tensor_index(index_for_bool, remain_indexes, dim)
+        prev_shape.insert(dim, 1)
+        dim += 1
+        return result, dim, remain_indexes, prev_shape
+    if isinstance(index, int):
+        result = _do_select(prev_result, dim, index, dim_index, prev_shape)
+        del prev_shape[dim]
+        return result, dim, remain_indexes, prev_shape
+    if isinstance(index, slice):
+        result = _do_slice(prev_result, dim, index, prev_shape)
+        # current dim in prev_shape will not be used later, ignore it
+        dim += 1
+        return result, dim, remain_indexes, prev_shape
+    if isinstance(index, type(...)):
+        dim += (orig_tensor.ndim - indexed_dims)
+        return prev_result, dim, remain_indexes, prev_shape
+    if index is None:
+        result = unsqueeze(prev_result, dim)
+        prev_shape.insert(dim, 1)
+        dim += 1
+        return result, dim, remain_indexes, prev_shape
+    if isinstance(index, torch.Tensor):
+        result = prev_result
+        if index.ndim == 0 and index.dtype in (torch.int, torch.long, torch.short, torch.bool):
+            if index.dtype in (torch.int, torch.long, torch.short):
+                result = _do_select(prev_result, dim, index.item(), dim_index, prev_shape)
+                del prev_shape[dim]
+                return result, dim, remain_indexes, prev_shape
+            # process index with Tensor bool type
+            result = unsqueeze(prev_result, dim)
+            index_for_bool = tensor_1d if index else empty_tensor_1d
+            _record_tensor_index(index_for_bool, remain_indexes, dim)
+            prev_shape.insert(dim, 1)
+            dim += 1
+            return result, dim, remain_indexes, prev_shape
+        _record_tensor_index(index, remain_indexes, dim)
+        dim += 1
+        return result, dim, remain_indexes, prev_shape
+    raise IndexError(f"Invalid tensor index type {index}")
+
+
+def _process_multi_dim_index(self, indexes, remain_indexes, indexed_dims):
+    """Process indexes in tuple"""
+    self_viewed = self
+    self_viewed_shape = list(self.shape)
+    dim = 0
+    for i, index in enumerate(indexes):
+        if isinstance(index, (list, tuple, np.ndarray)):
+            index_np = np.array(index) if isinstance(index, (list, tuple)) else index
+            if index_np.dtype in (np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16, np.uint32, np.uint64,
+                                  np.float16, np.float32, np.float64):
+                index = torch.tensor(index_np, device=self.device, dtype=torch.int64)
+            elif index_np.dtype == np.bool_:
+                index = torch.tensor(index_np, device=self.device, dtype=torch.int64)
+            else:
+                raise TypeError(f"Index {index} contain unsupported elements")
+        self_viewed, dim, remain_indexes, self_viewed_shape = _process_dim_in_multi_dim_index(
+            self_viewed, self, index, dim, indexed_dims, i, remain_indexes, self_viewed_shape)
+    return self_viewed, remain_indexes
+
+
 def tensor_getitem(self, index):
     """Handle tensor getitem"""
     if isinstance(index, bool):
@@ -279,7 +359,7 @@ def tensor_getitem(self, index):
         return result
     if index is None:
         return unsqueeze(self, 0)
-    if isinstance(index, Ellipsis):
+    if isinstance(index, type(...)):
         return self
     indexes = _wrap_index_to_tuple(index)
     indexed_dims = _count_indexed_dims(indexes)
@@ -296,7 +376,7 @@ def tensor_setitem(self, index, value):
     """Handle tensor setitem"""
     if not isinstance(value, torch.Tensor):
         if isinstance(value, (bool, int, float)):
-            value = torch.Tensor(value, device=self.device)
+            value = torch.tensor(value, dtype=self.dtype, device=self.device)
         else:
             raise TypeError(f"Can't assign a {type(value)} to a {self.dtype}.")
 

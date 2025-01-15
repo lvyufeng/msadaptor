@@ -230,10 +230,10 @@ class Tensor(metaclass=TensorMeta):
     def __getitem__(self, slices):
         return torch.tensor_getitem(self, slices)
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, slices, value):
         """"""
-        # return torch.array.setitem(self, key, value)
-        tensor_operator_registry.get("__setitem__")(self.data, key, value)
+        torch.tensor_setitem(self, slices, value)
+        return self
 
     def __add__(self, other):
         return torch.add(self, other)

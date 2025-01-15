@@ -309,6 +309,15 @@ class Tensor(metaclass=TensorMeta):
     def __index__(self):
         return int(self.item())
 
+    def __and__(self, other):
+        return torch.bitwise_and(self, other)
+
+    def __xor__(self, other):
+        return torch.bitwise_xor(self, other)
+
+    def __or__(self, other):
+        return torch.bitwise_or(self, other)
+
     # def __getattribute__(self, name):
     #     if name.endswith('_') and not name.endswith('__') and self.is_leaf and self.requires_grad and torch.is_grad_enabled():
     #         raise RuntimeError('a leaf Variable that requires grad is being used in an in-place operation.')

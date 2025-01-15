@@ -231,6 +231,8 @@ def _do_slice(self, dim: int, index: slice, self_shape: list):
     def _get_index(index, default):
         if index is None:
             return default
+        if torch.is_tensor(index):
+            index = int(index)
         return index
 
     if not self_shape:

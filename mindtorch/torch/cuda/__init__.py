@@ -14,7 +14,7 @@ def manual_seed_all(seed: int):
     manual_seed(seed)
 
 def current_device():
-    return -1
+    return torch.device('cuda', 0)
 
 def is_available():
     return mindspore.get_context('device_target') == 'GPU'

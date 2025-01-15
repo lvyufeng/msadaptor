@@ -2,6 +2,7 @@
 import torch
 torch.cuda = torch.npu
 torch.Tensor.cuda = torch.Tensor.npu
+torch.nn.Module.cuda = torch.nn.Module.npu
 
 old_move_to = torch.Tensor._move_to
 def _move_to(self, device, non_blocking=False):

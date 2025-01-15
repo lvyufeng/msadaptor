@@ -8,7 +8,7 @@ import itertools
 from collections import OrderedDict, namedtuple
 
 import torch
-from torch import Tensor
+from torch import device, dtype, Tensor
 
 from ...configs import ON_ORANGE_PI, set_pyboost
 from ..parameter import Parameter
@@ -1025,12 +1025,27 @@ class Module:
 
         return sorted(keys)
 
-    def cuda(self, device=None):
-        # return self._apply(lambda t: t.move_to('GPU'))
-        return self.npu()
+    def cuda(self: T, device: Optional[Union[int, device]] = None) -> T:
+        r"""Move all model parameters and buffers to the GPU.
 
-    def npu(self):
-        return self._apply(lambda t: t.move_to('Ascend'))
+        This also makes associated parameters and buffers different objects. So
+        it should be called before constructing optimizer if the module will
+        live on GPU while being optimized.
+
+        .. note::
+            This method modifies the module in-place.
+
+        Args:
+            device (int, optional): if specified, all parameters will be
+                copied to that device
+
+        Returns:
+            Module: self
+        """
+        return self._apply(lambda t: t.cuda(device))
+
+    def npu(self: T, device: Optional[Union[int, device]] = None) -> T:
+        return self._apply(lambda t: t.npu(device))
 
     def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict,
                               missing_keys, unexpected_keys, error_msgs):

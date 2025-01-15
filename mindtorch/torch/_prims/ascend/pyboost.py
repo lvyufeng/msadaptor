@@ -176,3 +176,9 @@ def concat_npu(*args):
     return pyboost_concat(concat_op, args)
 
 __all__.append('concat_npu')
+
+rms_norm_op = RmsNorm().set_device('Ascend')
+def rms_norm_npu(*args):
+    return pyboost_rms_norm(rms_norm_op, args)
+
+__all__.append('rms_norm_npu')

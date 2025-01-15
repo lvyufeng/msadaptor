@@ -36,23 +36,46 @@ def multinomial(input, num_samples, replacement=False, *, generator=None, out=No
 
 
 # normal
-def normal_(mean=0.0, std=1.0, *, size=None, generator=None, out=None):
+def normal(mean=0.0, std=1.0, *, size=None, generator=None, out=None,
+           dtype=None, layout=None, device=None, pin_memory=None, requires_grad=False):
     if generator is None:
         generator = default_generator
     seed, offset = generator._step(generator_step_)  # pylint: disable=protected-access
+    if device is None:
+        if out is None:
+            device = get_default_device()
+        else:
+            device = out.device
 
     is_mean_tensor = isinstance(mean, torch.Tensor)
     is_std_tensor = isinstance(std, torch.Tensor)
 
-    if is_mean_tensor and is_std_tensor:
-        output = execute("normal_tensor_tensor", mean, std, seed, offset)
-    if is_mean_tensor and not is_std_tensor:
-        output = execute("normal_tensor_float", mean, std, seed, offset)
-    if not is_mean_tensor and is_std_tensor:
-        output = execute("normal_float_tensor", mean, std, seed, offset)
-    output = execute("normal_float_float", mean, std, size, seed, offset)
+    print(device)
+    if device.type == 'cpu':
+        if is_mean_tensor and is_std_tensor:
+            size = (mean * std).shape
+        if is_mean_tensor and not is_std_tensor:
+            size = mean.shape
+        if not is_mean_tensor and is_std_tensor:
+            size = std.shape
+        if out is not None:
+            size = out.shape
+        output = execute('normal', size)
+        output = output * std - mean
+
+    else:
+        if is_mean_tensor and is_std_tensor:
+            output = execute("normal_tensor_tensor", mean, std, seed, offset, device=device)
+        if is_mean_tensor and not is_std_tensor:
+            output = execute("normal_tensor_float", mean, std, seed, offset, device=device)
+        if not is_mean_tensor and is_std_tensor:
+            output = execute("normal_float_tensor", mean, std, seed, offset, device=device)
+        if out is not None:
+            size = out.shape
+        output = execute("normal_float_float", float(mean), float(std), size, seed, offset, device=device)
+
     if out is None:
-        return out
+        return output
     out.data = output
     return out
 
@@ -68,6 +91,9 @@ def uniform_(input, *args, **kwargs):
     elif len(args) == 3:
         from_ = args[0]
         to_ = args[1]
+    else:
+        from_ = 0
+        to_ = 1
 
     from_ = kwargs.get("from", 0) if from_ is None else from_
     # to_ = kwargs.get("to", 1)
@@ -341,7 +367,7 @@ def randperm(
 __all__ = [
     "bernoulli",
     "multinomial",
-    "normal_",
+    "normal",
     "rand",
     "rand_like",
     "randint",

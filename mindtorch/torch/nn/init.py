@@ -158,6 +158,7 @@ def normal_(
     tensor: Tensor,
     mean: float = 0.0,
     std: float = 1.0,
+    generator: _Optional[torch.Generator] = None,
 ) -> Tensor:
     r"""Fill the input Tensor with values drawn from the normal distribution.
 
@@ -172,9 +173,7 @@ def normal_(
         >>> w = torch.empty(3, 5)
         >>> nn.init.normal_(w)
     """
-    tensor.data_sync(True)
-    tensor.assign_value(initializer(Normal(std, mean), tensor.shape, tensor.dtype))
-    return tensor
+    return _no_grad_normal_(tensor, mean, std, generator)
 
 
 def trunc_normal_(
@@ -183,6 +182,7 @@ def trunc_normal_(
     std: float = 1.0,
     a: float = -2.0,
     b: float = 2.0,
+    generator: _Optional[torch.Generator] = None,
 ) -> Tensor:
     r"""Fill the input Tensor with values drawn from a truncated normal distribution.
 
@@ -203,9 +203,7 @@ def trunc_normal_(
         >>> w = torch.empty(3, 5)
         >>> nn.init.trunc_normal_(w)
     """
-    tensor.data_sync(True)
-    tensor.assign_value(initializer(TruncatedNormal(std, mean, a, b), tensor.shape, tensor.dtype))
-    return tensor
+    return _no_grad_trunc_normal_(tensor, mean, std, a, b, generator=generator)
 
 
 def constant_(tensor: Tensor, val: float) -> Tensor:
@@ -219,9 +217,8 @@ def constant_(tensor: Tensor, val: float) -> Tensor:
         >>> w = torch.empty(3, 5)
         >>> nn.init.constant_(w, 0.3)
     """
-    tensor.data_sync(True)
-    tensor.assign_value(initializer(Constant(val), tensor.shape, tensor.dtype))
-    return tensor
+    return _no_grad_fill_(tensor, val)
+
 
 
 def ones_(tensor: Tensor) -> Tensor:
@@ -234,9 +231,8 @@ def ones_(tensor: Tensor) -> Tensor:
         >>> w = torch.empty(3, 5)
         >>> nn.init.ones_(w)
     """
-    tensor.data_sync(True)
-    tensor.assign_value(initializer('ones', tensor.shape, tensor.dtype))
-    return tensor
+    return _no_grad_fill_(tensor, 1.0)
+
 
 
 def zeros_(tensor: Tensor) -> Tensor:
@@ -249,9 +245,8 @@ def zeros_(tensor: Tensor) -> Tensor:
         >>> w = torch.empty(3, 5)
         >>> nn.init.zeros_(w)
     """
-    tensor.data_sync(True)
-    tensor.assign_value(initializer('zeros', tensor.shape, tensor.dtype))
-    return tensor
+    return _no_grad_zero_(tensor)
+
 
 
 def dirac_(tensor, groups=1):
@@ -270,8 +265,40 @@ def dirac_(tensor, groups=1):
         >>> w = torch.empty(3, 24, 5, 5)
         >>> nn.init.dirac_(w, 3)
     """
-    tensor.data_sync(True)
-    tensor.assign_value(initializer(Dirac(groups), tensor.shape, tensor.dtype))
+    dimensions = tensor.ndimension()
+    if dimensions not in [3, 4, 5]:
+        raise ValueError("Only tensors with 3, 4, or 5 dimensions are supported")
+
+    sizes = tensor.size()
+
+    if sizes[0] % groups != 0:
+        raise ValueError("dim 0 must be divisible by groups")
+
+    out_chans_per_grp = sizes[0] // groups
+    min_dim = min(out_chans_per_grp, sizes[1])
+
+    with torch.no_grad():
+        tensor.zero_()
+
+        for g in range(groups):
+            for d in range(min_dim):
+                if dimensions == 3:  # Temporal convolution
+                    tensor[g * out_chans_per_grp + d, d, tensor.size(2) // 2] = 1
+                elif dimensions == 4:  # Spatial convolution
+                    tensor[
+                        g * out_chans_per_grp + d,
+                        d,
+                        tensor.size(2) // 2,
+                        tensor.size(3) // 2,
+                    ] = 1
+                else:  # Volumetric convolution
+                    tensor[
+                        g * out_chans_per_grp + d,
+                        d,
+                        tensor.size(2) // 2,
+                        tensor.size(3) // 2,
+                        tensor.size(4) // 2,
+                    ] = 1
     return tensor
 
 
@@ -442,6 +469,7 @@ def kaiming_normal_(
     a: float = 0,
     mode: str = "fan_in",
     nonlinearity: str = "leaky_relu",
+    generator: _Optional[torch.Generator] = None,
 ):
     r"""Fill the input `Tensor` with values using a Kaiming normal distribution.
 
@@ -485,12 +513,13 @@ def kaiming_normal_(
     fan = _calculate_correct_fan(tensor, mode)
     gain = calculate_gain(nonlinearity, a)
     std = gain / math.sqrt(fan)
-    return normal_(tensor, 0, std)
-
+    with torch.no_grad():
+        return tensor.normal_(0, std, generator=generator)
 
 def orthogonal_(
     tensor,
     gain=1,
+    generator: _Optional[torch.Generator] = None,
 ):
     r"""Fill the input `Tensor` with a (semi) orthogonal matrix.
 
@@ -508,15 +537,39 @@ def orthogonal_(
         >>> w = torch.empty(3, 5)
         >>> nn.init.orthogonal_(w)
     """
-    tensor.data_sync(True)
-    tensor.assign_value(initializer(Orthogonal(gain), tensor.shape, tensor.dtype))
-    return tensor
+    if tensor.ndimension() < 2:
+        raise ValueError("Only tensors with 2 or more dimensions are supported")
 
+    if tensor.numel() == 0:
+        # no-op
+        return tensor
+    rows = tensor.size(0)
+    cols = tensor.numel() // rows
+    flattened = tensor.new_empty((rows, cols)).normal_(0, 1, generator=generator)
+
+    if rows < cols:
+        flattened.t_()
+
+    # Compute the qr factorization
+    q, r = torch.linalg.qr(flattened)
+    # Make Q uniform according to https://arxiv.org/pdf/math-ph/0609050.pdf
+    d = torch.diag(r, 0)
+    ph = d.sign()
+    q *= ph
+
+    if rows < cols:
+        q.t_()
+
+    with torch.no_grad():
+        tensor.view_as(q).copy_(q)
+        tensor.mul_(gain)
+    return tensor
 
 def sparse_(
     tensor,
     sparsity,
     std=0.01,
+    generator: _Optional[torch.Generator] = None,
 ):
     r"""Fill the 2D input `Tensor` as a sparse matrix.
 
@@ -535,9 +588,20 @@ def sparse_(
         >>> w = torch.empty(3, 5)
         >>> nn.init.sparse_(w, sparsity=0.1)
     """
-    tensor.data_sync(True)
-    tensor.assign_value(initializer(Sparse(sparsity, std), tensor.shape, tensor.dtype))
+    if tensor.ndimension() != 2:
+        raise ValueError("Only tensors with 2 dimensions are supported")
+
+    rows, cols = tensor.shape
+    num_zeros = int(math.ceil(sparsity * rows))
+
+    with torch.no_grad():
+        tensor.normal_(0, std, generator=generator)
+        for col_idx in range(cols):
+            row_indices = torch.randperm(rows)
+            zero_indices = row_indices[:num_zeros]
+            tensor[zero_indices, col_idx] = 0
     return tensor
+
 
 
 uniform = uniform_

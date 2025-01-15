@@ -506,6 +506,8 @@ def square(input):
 
 # sub
 def sub(input, other):
+    if input.device.type == 'cpu':
+        return execute("sub", input, other)
     return execute("sub_ext", input, other)
 
 

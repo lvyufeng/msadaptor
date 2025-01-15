@@ -5,7 +5,7 @@ from mindspore._c_expression import pyboost_cast, pyboost_empty, pyboost_zeros, 
 from mindspore.ops.operations.manually_defined.ops_def import Cast, Zeros, Ones
 from mindspore.ops._primitive_cache import _get_cache_prim
 from mindspore.ops import StopGradient, Primitive, ApplyAdadelta, Adam, ApplyAdamWithAmsgradV2, SGD
-from mindspore.ops import FillV2, UniformReal, Stack
+from mindspore.ops import FillV2, UniformReal, Stack, StandardNormal
 
 pyboost_list = list(filter(lambda s: s.startswith("pyboost"), dir(gen_ops_prim)))
 pyboost_op_list = [op.replace('pyboost_', '') + '_op' for op in pyboost_list]
@@ -189,3 +189,9 @@ def hard_shrink_cpu(*args):
     return pyboost_hshrink(hard_shrink_op, args)
 
 __all__.append('hard_shrink_cpu')
+
+normal_op = StandardNormal().set_device('CPU')
+def normal_cpu(*args):
+    return _pynative_executor.run_op_async(normal_op, normal_op.name, args)
+
+__all__.append('normal_cpu')

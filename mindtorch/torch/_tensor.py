@@ -792,8 +792,8 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.diag
-    def diag(self):
-        return torch.diag(self)
+    def diag(self, diagonal=0):
+        return torch.diag(self, diagonal)
 
     # Tensor.diag_embed
 
@@ -1580,7 +1580,7 @@ class Tensor(metaclass=TensorMeta):
 
     # Tensor.normal_
     def normal_(self, mean=0, std=1, *, generator=None):
-        return torch.normal_(self, mean, std, generator=generator)
+        return torch.normal(mean, std, generator=generator, out=self)
 
     # Tensor.numpy
     def numpy(self):

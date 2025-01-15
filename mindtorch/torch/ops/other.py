@@ -96,9 +96,8 @@ def cumsum(input, dim, dtype=None):
                    dtype if dtype is None else dtype_to_type_id('CumsumExt', 'dtype', dtype))
 
 # diag
-def diag(input):
-    return execute('diag', input)
-
+def diag(input, diagonal=0, *, out=None):
+    return execute('diag', input, diagonal)
 
 # diag_embed
 

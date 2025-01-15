@@ -133,7 +133,7 @@ class Tensor(metaclass=TensorMeta):
 
     @requires_grad.setter
     def requires_grad(self, requires_grad):
-        if not isinstance(self.dtype, typing.Float) and requires_grad:
+        if not isinstance(self.dtype, (typing.Float, typing.BFloat)) and requires_grad:
             raise RuntimeError('only Tensors of floating point and complex dtype can require gradients')
         self._requires_grad = requires_grad
         if self.tensor is not None and requires_grad:

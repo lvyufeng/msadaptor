@@ -3,6 +3,14 @@ import torch
 torch.cuda = torch.npu
 torch.Tensor.cuda = torch.Tensor.npu
 
+old_move_to = torch.Tensor._move_to
+def _move_to(self, device, non_blocking=False):
+    if device.type == 'cuda':
+        device = torch.device('npu', device.index)
+    return old_move_to(self, device, non_blocking)
+
+torch.Tensor._move_to = _move_to
+
 
 class device():
     def __init__(self, type=None, index=None):

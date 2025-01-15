@@ -45,6 +45,7 @@ class Tensor(metaclass=TensorMeta):
     stub = None
     grad = None
 
+    _base = None # notice: _base should be root Tensor when created by view class op
     _user_created = False
     _requires_grad = False
     _retain_grad = False

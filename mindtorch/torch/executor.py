@@ -1,5 +1,6 @@
 from mindspore._c_expression import TensorNode, SequenceNode, NoneTypeNode, AnyTypeNode
 from mindspore.common.api import _pynative_executor
+from mindspore.common._stub_tensor import _convert_python_data
 
 import torch
 from ._tensor import Tensor
@@ -16,11 +17,11 @@ def _convert_stub(stub, device):
         return tuple(_convert_stub(e, device) for e in elements)
     if isinstance(stub, NoneTypeNode):
         val = stub.get_real_value()
-        return Tensor(val, device=device)
+        return _convert_python_data(val)
     if isinstance(stub, AnyTypeNode):
         val = stub.get_real_node()
         return _convert_stub(val, device)
-    return Tensor(stub, device=device)
+    return _convert_python_data(stub)
 
 
 def execute(func_name, *args, **kwargs):

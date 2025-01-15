@@ -1176,7 +1176,8 @@ class Tensor(metaclass=TensorMeta):
         return self._data.is_contiguous()
 
     # Tensor.is_complex
-
+    def is_complex(self):
+        return False
 
     # Tensor.is_conj
 

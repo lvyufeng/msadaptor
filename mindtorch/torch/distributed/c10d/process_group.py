@@ -2,17 +2,9 @@ import torch
 from torch import Tensor
 from typing import List, Optional, Dict, Any
 from enum import Enum
-import time
-from mindspore.communication.comm_func import barrier, broadcast, reduce, gather_into_tensor, scatter_tensor
-try:
-    from mindspore.ops.auto_generate.gen_ops_prim import (dist_comm_all_reduce_op, dist_comm_all_gather_op,
-                                                        dist_comm_all_gather_into_tensor_op, dist_comm_reduce_scatter_op,
-                                                        dist_comm_reduce_scatter_tensor_op, dist_comm_barrier_op,
-                                                        dist_comm_scatter_op, dist_comm_gather_op,
-                                                        dist_comm_irecv_op, dist_comm_broadcast_op,
-                                                        dist_comm_isend_op)
-except:
-    pass
+
+from torch.executor import execute
+
 
 class BackendType(Enum):
     UNDEFINED = 0
@@ -119,12 +111,12 @@ class ProcessGroup:
 
     def broadcast(self, tensors: List[Tensor], opts: Any) -> Any:
         tensor = tensors[0]
-        _, work = dist_comm_broadcast_op(tensor, opts.rootRank, self._name)
+        _, work = execute('dist_comm_broadcast', tensor, opts.rootRank, self._name)
         return work
 
     def allreduce(self, tensors: List[Tensor], opts: Any) -> Any:
         tensor = tensors[0]
-        _, handle = dist_comm_all_reduce_op(tensor, opts.reduceOp, self._name)
+        _, handle = execute('dist_comm_all_reduce', tensor, opts.reduceOp, self._name)
         return handle
 
     def _allgather_base(self, output_tensor: Tensor, input_tensor: Tensor, opts: Any=None):
@@ -132,13 +124,13 @@ class ProcessGroup:
         output_rank = output_tensor.ndim - 1
         if output_rank > 0:
             input_size = input_size + input_tensor.shape[input_tensor.ndim - output_rank:]
-        _, handle = dist_comm_all_gather_into_tensor_op(output_tensor, input_tensor.view(input_size), self._size, self._name)
+        _, handle = execute('dist_comm_all_gather_into_tensor', output_tensor, input_tensor.view(input_size), self._size, self._name)
         return handle
 
     def allgather(self, output_tensors: List[List[Tensor]], input_tensors: List[Tensor], opts: Any=None) -> Any:
         tensor_list = output_tensors[0]
         tensor = input_tensors[0]
-        _, handle = dist_comm_all_gather_op(tensor_list, tensor, self._size, self._name)
+        _, handle = execute('dist_comm_all_gather', tensor_list, tensor, self._size, self._name)
         return handle
 
     def reduce(self, tensors: List[Tensor], opts: Any) -> Any:
@@ -150,40 +142,40 @@ class ProcessGroup:
         tensor = input_tensors[0]
         gather_list = output_tensors[0]
 
-        _, work = dist_comm_gather_op(tensor, gather_list, self._size, opts.rootRank, self._rank, self._name)
+        _, work = execute('dist_comm_gather', tensor, gather_list, self._size, opts.rootRank, self._rank, self._name)
         return work
 
     def scatter(self, output_tensors: List[Tensor], input_tensors: List[List[Tensor]], opts: Any) -> Any:
         tensor = output_tensors[0]
         scatter_list = input_tensors[0]
-        _, work = dist_comm_scatter_op(tensor, scatter_list, self._size, opts.rootRank, self._rank, self._name)
+        _, work = execute('dist_comm_scatter', tensor, scatter_list, self._size, opts.rootRank, self._rank, self._name)
         return work
 
     def reduce_scatter(self, output_tensors: List[Tensor], input_tensors: List[List[Tensor]], opts: Any) -> Any:
         output = output_tensors[0]
         input_list = input_tensors[0]
-        _, work = dist_comm_reduce_scatter_op(output, input_list, self._size, opts.reduceOp, self._name)
+        _, work = execute('dist_comm_reduce_scatter', output, input_list, self._size, opts.reduceOp, self._name)
         if allow_inflight_collective_as_graph_input():
             for tensor in output_tensors:
                 register_work(tensor, work)
         return work
 
     def _reduce_scatter_base(self, output_tensor, input_tensor, opts: Any):
-        _, work = dist_comm_reduce_scatter_tensor_op(output_tensor, input_tensor, self._size, opts.reduceOp, self._name)
+        _, work = execute('dist_comm_reduce_scatter_tensor', output_tensor, input_tensor, self._size, opts.reduceOp, self._name)
         return work
 
     def barrier(self, opts: Any) -> Any:
-        _, work = dist_comm_barrier_op(self._name)
+        _, work = execute('dist_comm_barrier', self._name)
         return work
 
     def recv(self, tensors, srcRank, tag):
         tensor = tensors[0]
-        _, work = dist_comm_irecv_op(tensor, tag, srcRank, self._name)
+        _, work = execute('dist_comm_irecv', tensor, tag, srcRank, self._name)
         return work
 
     def send(self, tensors: List[Tensor], dstRank: int, tag: int):
         tensor = tensors[0]
-        _, handle = dist_comm_isend_op(tensor, dstRank, self._name, tag)
+        _, handle = execute('dist_comm_isend', tensor, dstRank, self._name, tag)
         return handle
 
     def get_device_types(self) -> List[Any]:
@@ -246,8 +238,9 @@ class WorkRegistry:
     def set_allow_inflight_collective_as_graph_input(self, value: bool):
         self.allow_inflight_collective_as_graph_input = value
 
-    def allow_inflight_collective_as_graph_input(self) -> bool:
-        return self.allow_inflight_collective_as_graph_input
+    # @property
+    # def allow_inflight_collective_as_graph_input(self) -> bool:
+    #     return self.allow_inflight_collective_as_graph_input
 
     def __del__(self):
         if self.get_work_registry_size() > 0:

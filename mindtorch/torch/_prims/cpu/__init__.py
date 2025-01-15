@@ -5,7 +5,9 @@ from mindspore._c_expression import pyboost_cast, pyboost_empty, pyboost_zeros, 
 from mindspore.ops.operations.manually_defined.ops_def import Cast, Zeros, Ones
 from mindspore.ops._primitive_cache import _get_cache_prim
 from mindspore.ops import StopGradient, Primitive, ApplyAdadelta, Adam, ApplyAdamWithAmsgradV2, SGD
-from mindspore.ops import FillV2, UniformReal, Stack, StandardNormal
+from mindspore.ops import FillV2, UniformReal, Stack, StandardNormal, TensorScatterUpdate
+from mindspore.ops.operations._grad_ops import StridedSliceGrad
+
 
 pyboost_list = list(filter(lambda s: s.startswith("pyboost"), dir(gen_ops_prim)))
 pyboost_op_list = [op.replace('pyboost_', '') + '_op' for op in pyboost_list]
@@ -201,3 +203,21 @@ def reduce_any_cpu(*args):
     return pyboost_reduce_any(reduce_any_op, args)
 
 __all__.append('reduce_any_cpu')
+
+def strided_slice_grad_cpu(input, begin, end, strides, update, begin_mask=0, end_mask=0, ellipsis_mask=0, new_axis_mask=0, shrink_axis_mask=0):
+    strided_slice_grad = _get_cache_prim(StridedSliceGrad)(begin_mask, end_mask, ellipsis_mask, new_axis_mask, shrink_axis_mask).set_device('CPU')
+    return _pynative_executor.run_op_async(strided_slice_grad, strided_slice_grad.name, [update, input.shape, begin, end, strides])
+
+__all__.append('strided_slice_grad_cpu')
+
+tensor_scatter_update_op = TensorScatterUpdate().set_device('CPU')
+def tensor_scatter_update_cpu(*args):
+    return _pynative_executor.run_op_async(tensor_scatter_update_op, tensor_scatter_update_op.name, args)
+
+__all__.append('tensor_scatter_update_cpu')
+
+broadcast_to_op = Primitive('BroadcastTo').set_device('CPU')
+def broadcast_to_cpu(*args):
+    return pyboost_broadcast_to(broadcast_to_op, args)
+
+__all__.append('broadcast_to_cpu')

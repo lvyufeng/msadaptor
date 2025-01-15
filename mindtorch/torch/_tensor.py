@@ -228,11 +228,16 @@ class Tensor(metaclass=TensorMeta):
         return np.ndarray.__format__(self.numpy(), format_spec)
 
     def __getitem__(self, slices):
+        if self.device.type == 'cpu':
+            return torch.getitem(self, slices)
         return torch.tensor_getitem(self, slices)
 
     def __setitem__(self, slices, value):
         """"""
-        torch.tensor_setitem(self, slices, value)
+        if self.device.type == 'cpu':
+            torch.setitem(self, slices, value)
+        else:
+            torch.tensor_setitem(self, slices, value)
         return self
 
     def __add__(self, other):

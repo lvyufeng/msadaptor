@@ -55,6 +55,24 @@ class device():
 
 torch.device = device
 
+old_init_process_group = torch.distributed.init_process_group
+
+def init_process_group(
+    backend = None,
+    init_method = None,
+    timeout = None,
+    world_size: int = -1,
+    rank: int = -1,
+    store  = None,
+    group_name: str = "",
+    pg_options = None,
+    device_id = None):
+    if backend == 'nccl':
+        backend = 'hccl'
+    return old_init_process_group(backend, init_method, timeout, world_size, rank, store, group_name, pg_options, device_id)
+
+torch.distributed.init_process_group = init_process_group
+
 from . import npu
 from . import profiler
 from torch.nn.functional import rms_norm, fast_gelu, swiglu

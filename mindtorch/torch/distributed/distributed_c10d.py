@@ -1446,8 +1446,6 @@ def init_process_group(
         "cpu:gloo,cuda:custom_backend".
 
     """
-    if backend == 'nccl':
-        backend = 'hccl'
     global _world
 
     global _backend
@@ -1695,6 +1693,10 @@ def _new_process_group_helper(
         group_rank,
         group_size,
     )
+
+    device = 'npu' if backend == 'hccl' else 'cpu'
+    pg._register_backend(torch.device(device), backend, backend)
+
     # update global state
     _world.pg_map[pg] = (backend, prefix_store)
     _world.pg_names[pg] = group_name

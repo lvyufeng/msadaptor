@@ -34,6 +34,9 @@ def execute(func_name, *args, **kwargs):
 
     out, device = dispatcher.dispatch(func_name, *args, **kwargs)
     out_tensor = _convert_stub(out, device=device)
-    out_tensor._requires_grad = requires_grad
-    out_tensor._user_created = user_created
+    out_list = out_tensor if isinstance(out_tensor, tuple) else [out_tensor]
+    for tensor in out_list:
+        tensor._requires_grad = requires_grad
+        tensor._user_created = user_created
     return out_tensor
+

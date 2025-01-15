@@ -28,10 +28,14 @@ def aminmax(input, *, dim=None, keepdim=False):
 
 # all
 def all(input, dim=None, keepdim=False, *, dtype=None):
+    if dim is None:
+        dim = ()
     return execute('reduce_all', input, dim, keepdim)
 
 # any
 def any(input, dim=None, keepdim=False):
+    if dim is None:
+        dim = ()
     return execute('reduce_any', input, dim, keepdim)
 
 # max

@@ -25,7 +25,7 @@ def ge(input, other):
 
 # gt
 def gt(input, other):
-    execute('greater', input, other)
+    return execute('greater', input, other)
 
 # greater
 def greater(input, other):

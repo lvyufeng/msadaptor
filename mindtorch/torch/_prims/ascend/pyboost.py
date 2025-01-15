@@ -100,7 +100,7 @@ __all__.append('reduce_all_npu')
 
 reduce_any_op = ReduceAny().set_device('Ascend')
 def reduce_any_npu(*args):
-    return pyboost_reduce_all(reduce_any_op, args)
+    return pyboost_reduce_any(reduce_any_op, args)
 
 __all__.append('reduce_any_npu')
 

@@ -298,6 +298,9 @@ class Tensor(metaclass=TensorMeta):
     def __int__(self):
         return int(self.item())
 
+    def __bool__(self):
+        return bool(self.item())
+
     def __index__(self):
         return int(self.item())
 

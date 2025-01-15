@@ -198,6 +198,6 @@ __all__.append('normal_cpu')
 
 reduce_any_op = ReduceAny().set_device('CPU')
 def reduce_any_cpu(*args):
-    return pyboost_reduce_all(reduce_any_op, args)
+    return pyboost_reduce_any(reduce_any_op, args)
 
 __all__.append('reduce_any_cpu')

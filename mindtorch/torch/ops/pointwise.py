@@ -45,12 +45,12 @@ def add(input, other, *, alpha=1):
 
 # addcdiv
 def addcdiv(input, tensor1, tensor2, *, value=1):
-    return execute("addcdiv", tensor1, tensor2, value)
+    return execute("addcdiv", input, tensor1, tensor2, value)
 
 
 # addcmul
 def addcmul(input, tensor1, tensor2, *, value=1):
-    return execute("addcmul", tensor1, tensor2, value)
+    return execute("addcmul", input, tensor1, tensor2, value)
 
 
 # angle
@@ -505,15 +505,18 @@ def square(input):
 
 
 # sub
-def sub(input, other):
+def sub(input, other, *, alpha=1, out=None):
     if input.device.type == 'cpu':
-        return execute("sub", input, other)
-    return execute("sub_ext", input, other)
-
+        output = execute("sub", input, alpha * other)
+    output = execute("sub_ext", input, other, alpha)
+    if out is None:
+        return output
+    out.copy_(output)
+    return out
 
 # subtract
-def subtract(input, other):
-    return sub(input, other)
+def subtract(input, other, *, alpha=1, out=None):
+    return sub(input, other, alpha=alpha, out=out)
 
 
 # tan

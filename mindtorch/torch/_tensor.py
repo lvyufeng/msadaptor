@@ -318,6 +318,13 @@ class Tensor(metaclass=TensorMeta):
     def __or__(self, other):
         return torch.bitwise_or(self, other)
 
+    def __invert__(self):
+        return torch.logical_not(self)
+
+    def __round__(self):
+        return torch.round(self)
+
+
     # def __getattribute__(self, name):
     #     if name.endswith('_') and not name.endswith('__') and self.is_leaf and self.requires_grad and torch.is_grad_enabled():
     #         raise RuntimeError('a leaf Variable that requires grad is being used in an in-place operation.')
@@ -1989,12 +1996,12 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.sub
-    def sub(self, other):
-        return torch.sub(self, other)
+    def sub(self, other, *, alpha=1):
+        return torch.sub(self, other, alpha=alpha)
 
     # Tensor.sub_
-    def sub_(self, other):
-        return self.copy_(torch.sub(self, other))
+    def sub_(self, other, *, alpha=1):
+        return self.copy_(torch.sub(self, other, alpha=alpha))
 
 
     # Tensor.subtract

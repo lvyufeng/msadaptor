@@ -1,4 +1,4 @@
-from mindspore._c_expression import TensorNode, SequenceNode, NoneTypeNode, AnyTypeNode
+from mindspore._c_expression import TensorNode, SequenceNode, NoneTypeNode, AnyTypeNode, Tensor as MSTensor
 from mindspore.common.api import _pynative_executor
 from mindspore.common._stub_tensor import _convert_python_data
 
@@ -8,7 +8,7 @@ from .dispatcher import dispatcher
 
 def _convert_stub(stub, device):
     "convert stub to StubNode or Value"
-    if isinstance(stub, TensorNode):
+    if isinstance(stub, (MSTensor, TensorNode)):
         return Tensor(stub, device=device)
     if isinstance(stub, tuple):
         return tuple(_convert_stub(e, device) for e in stub)

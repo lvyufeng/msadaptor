@@ -449,7 +449,6 @@ def cumprod(x, axis=0, exclusive=False, reverse=False):
 
     return result
 
-from mindspore import ops
 def moveaxis(a, source, destination):
     """Raises ValueError if source, destination not in (-ndim(a), ndim(a))."""
     if not source and not destination:
@@ -706,7 +705,7 @@ def getitem(self, slice_spec):
             and slice_spec.dtype == torch.bool
         )
     ):
-        return ops.boolean_mask(tensor=self, mask=slice_spec)
+        return masked_select(self, slice_spec)
 
     if not isinstance(slice_spec, tuple):
         slice_spec = _as_spec_tuple(slice_spec)
@@ -734,7 +733,7 @@ def setitem(a, slice_spec, updates):
 
 def strided_slice_update(input, begin, end, strides, update, begin_mask=0, end_mask=0, ellipsis_mask=0, new_axis_mask=0, shrink_axis_mask=0):
     if isinstance(update, (int, float, bool)):
-        update = torch.tensor(update)
+        update = torch.tensor(update, device=input.device, dtype=input.dtype)
     sliced_tensor = execute('strided_slice', input, begin, end, strides, begin_mask, end_mask, ellipsis_mask, new_axis_mask, shrink_axis_mask)
     if update.shape != sliced_tensor.shape:
         update = update.broadcast_to(sliced_tensor.shape)

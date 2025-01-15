@@ -614,8 +614,7 @@ class Tensor(metaclass=TensorMeta):
 
     # Tensor.broadcast_to
     def broadcast_to(self, shape):
-        raise NotImplementedError
-        # return torch.broadcast_to(self, shape)
+        return torch.broadcast_to(self, shape)
 
     # Tensor.cauchy_
 
@@ -625,7 +624,7 @@ class Tensor(metaclass=TensorMeta):
         return torch.ceil(self)
 
     # Tensor.ceil_
-    def ceil(self):
+    def ceil_(self):
         return self.copy_(torch.ceil(self))
 
     # Tensor.char

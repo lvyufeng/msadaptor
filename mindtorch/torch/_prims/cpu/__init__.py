@@ -195,3 +195,9 @@ def normal_cpu(*args):
     return _pynative_executor.run_op_async(normal_op, normal_op.name, args)
 
 __all__.append('normal_cpu')
+
+reduce_any_op = ReduceAny().set_device('CPU')
+def reduce_any_cpu(*args):
+    return pyboost_reduce_all(reduce_any_op, args)
+
+__all__.append('reduce_any_cpu')

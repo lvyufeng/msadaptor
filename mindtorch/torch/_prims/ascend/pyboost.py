@@ -170,3 +170,9 @@ def hard_shrink_npu(*args):
     return pyboost_hshrink(hard_shrink_op, args)
 
 __all__.append('hard_shrink_npu')
+
+concat_op = Concat().set_device('Ascend')
+def concat_npu(*args):
+    return pyboost_concat(concat_op, args)
+
+__all__.append('concat_npu')

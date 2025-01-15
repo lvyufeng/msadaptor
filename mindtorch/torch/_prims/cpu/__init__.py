@@ -221,3 +221,9 @@ def broadcast_to_cpu(*args):
     return pyboost_broadcast_to(broadcast_to_op, args)
 
 __all__.append('broadcast_to_cpu')
+
+concat_op = Concat().set_device('CPU')
+def concat_cpu(*args):
+    return pyboost_concat(concat_op, args)
+
+__all__.append('concat_cpu')

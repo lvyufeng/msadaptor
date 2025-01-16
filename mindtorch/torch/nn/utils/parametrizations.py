@@ -3,8 +3,8 @@
 from enum import auto, Enum
 from typing import Optional
 
-import mindspore
-from mindspore import Tensor
+import torch
+from torch import Tensor
 from .. import functional as F
 from ...nn.modules import Module
 from ... import ops, nn
@@ -71,7 +71,7 @@ class _Orthogonal(Module):
         if use_trivialization:
             self.register_buffer("base", None)
 
-    def forward(self, X: mindspore.Tensor) -> mindspore.Tensor:
+    def forward(self, X: torch.Tensor) -> torch.Tensor:
         n, k = X.size(-2), X.size(-1)
         transposed = n < k
         if transposed:
@@ -116,7 +116,7 @@ class _Orthogonal(Module):
         return Q  # type: ignore[possibly-undefined]
 
     @no_grad()
-    def right_inverse(self, Q: mindspore.Tensor) -> mindspore.Tensor:
+    def right_inverse(self, Q: torch.Tensor) -> torch.Tensor:
         if Q.shape != self.shape:
             raise ValueError(
                 f"Expected a matrix or batch of matrices of shape {self.shape}. "
@@ -402,7 +402,7 @@ def weight_norm(module: Module, name: str = "weight", dim: int = 0):
 class _SpectralNorm(Module):
     def __init__(
         self,
-        weight: mindspore.Tensor,
+        weight: torch.Tensor,
         n_power_iterations: int = 1,
         dim: int = 0,
         eps: float = 1e-12,
@@ -437,7 +437,7 @@ class _SpectralNorm(Module):
             # of iterations of the power method
             self._power_method(weight_mat, 15)
 
-    def _reshape_weight_to_matrix(self, weight: mindspore.Tensor) -> mindspore.Tensor:
+    def _reshape_weight_to_matrix(self, weight: torch.Tensor) -> torch.Tensor:
         # Precondition
         assert weight.ndim > 1
 
@@ -450,7 +450,7 @@ class _SpectralNorm(Module):
         return weight.flatten(1)
 
     @no_grad()
-    def _power_method(self, weight_mat: mindspore.Tensor, n_power_iterations: int) -> None:
+    def _power_method(self, weight_mat: torch.Tensor, n_power_iterations: int) -> None:
         # See original note at torch/nn/utils/spectral_norm.py
         # NB: If `do_power_iteration` is set, the `u` and `v` vectors are
         #     updated in power iteration **in-place**. This is very important
@@ -500,7 +500,7 @@ class _SpectralNorm(Module):
                 eps=self.eps,
             )
 
-    def forward(self, weight: mindspore.Tensor) -> mindspore.Tensor:
+    def forward(self, weight: torch.Tensor) -> torch.Tensor:
         if weight.ndim == 1:
             # Faster and more exact path, no need to approximate anything
             return F.normalize(weight, dim=0, eps=self.eps)
@@ -517,7 +517,7 @@ class _SpectralNorm(Module):
             sigma = ops.vdot(u, ops.mv(weight_mat, v))
             return weight / sigma
 
-    def right_inverse(self, value: mindspore.Tensor) -> mindspore.Tensor:
+    def right_inverse(self, value: torch.Tensor) -> torch.Tensor:
         # we may want to assert here that the passed value already
         # satisfies constraints
         return value

@@ -3,7 +3,7 @@ from collections import OrderedDict
 import weakref
 import warnings
 from typing import Any, Tuple
-import mindspore
+import torch
 
 __all__ = ["RemovableHandle", "unserializable_hook", "warn_if_has_hooks", "BackwardHook"]
 
@@ -161,7 +161,7 @@ class BackwardHook:
 
         requires_grad = False
         for i, arg in enumerate(args):
-            if isinstance(arg, mindspore.Tensor):
+            if isinstance(arg, torch.Tensor):
                 tensors_idx.append(i)
                 tensors.append(arg)
                 requires_grad |= arg.requires_grad

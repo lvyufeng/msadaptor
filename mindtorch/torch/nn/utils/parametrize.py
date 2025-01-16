@@ -7,8 +7,8 @@ from contextlib import contextmanager
 from copy import deepcopy
 from typing import Dict, Optional, Sequence, Tuple, Union
 
-import mindspore
-from mindspore import Tensor
+import torch
+from torch import Tensor
 from ...nn.modules.container import Module, ModuleDict, ModuleList
 from ...nn.parameter import Parameter
 from ...autograd import no_grad
@@ -667,7 +667,7 @@ def remove_parametrizations(
             # We do this so that the parameter does not to change the id()
             # This way the user does not need to update the optimizer
             with no_grad():
-                if type(original) is mindspore.Tensor:
+                if type(original) is torch.Tensor:
                     _maybe_set(original, t)
                 else:
                     try:

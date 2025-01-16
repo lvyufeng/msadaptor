@@ -1,7 +1,7 @@
 """pooling"""
 # pylint: disable=unused-import
 from typing import Optional
-from mindspore import ops, Tensor
+from torch import Tensor
 
 from .module import Module
 from ._utils import _single

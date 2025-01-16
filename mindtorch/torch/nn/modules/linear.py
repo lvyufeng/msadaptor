@@ -1,7 +1,7 @@
 """linear"""
 from typing import Any
 import math
-from mindspore import Tensor
+from torch import Tensor
 from ..parameter import Parameter
 from .module import Module
 from .. import init

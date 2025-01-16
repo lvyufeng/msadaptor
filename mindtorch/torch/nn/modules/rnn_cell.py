@@ -15,7 +15,7 @@
 """RNN Cells module, include RNNCell, GRUCell, LSTMCell."""
 import math
 
-import mindspore
+import torch
 from ..parameter import Parameter
 from .module import Module
 from .. import init
@@ -127,11 +127,11 @@ class RNNCell(RNNCellBase):
         bias (bool): Whether the cell has bias :math:`b_{ih}` and :math:`b_{hh}`. Default: ``True`` .
         nonlinearity (str): The non-linearity to use. Can be either ``"tanh"`` or ``"relu"`` .
             Default: ``"tanh"`` .
-        dtype (:class:`mindspore.dtype`): Dtype of Parameters. Default: ``mstype.float32`` .
+        dtype (:class:`torch.dtype`): Dtype of Parameters. Default: ``mstype.float32`` .
 
     Inputs:
         - **x** (Tensor) - Tensor of shape :math:`(batch\_size, input\_size)` .
-        - **hx** (Tensor) - Tensor of data type mindspore.float32 and shape :math:`(batch\_size, hidden\_size)` .
+        - **hx** (Tensor) - Tensor of data type torch.float32 and shape :math:`(batch\_size, hidden\_size)` .
 
     Outputs:
         - **hx'** (Tensor) - Tensor of shape :math:`(batch\_size, hidden\_size)` .
@@ -160,7 +160,7 @@ class RNNCell(RNNCellBase):
     _non_linearity = ['tanh', 'relu']
 
     def __init__(self, input_size: int, hidden_size: int, bias: bool = True, nonlinearity: str = "tanh",
-                 dtype=mindspore.float32):
+                 dtype=torch.float32):
         super().__init__(input_size, hidden_size, bias, num_chunks=1, dtype=dtype)
         self.nonlinearity = nonlinearity
 
@@ -203,11 +203,11 @@ class LSTMCell(RNNCellBase):
         input_size (int): Number of features of input.
         hidden_size (int):  Number of features of hidden layer.
         bias (bool): Whether the cell has bias `b_{ih}` and `b_{hh}`. Default: ``True`` .
-        dtype (:class:`mindspore.dtype`): Dtype of Parameters. Default: ``mstype.float32`` .
+        dtype (:class:`torch.dtype`): Dtype of Parameters. Default: ``mstype.float32`` .
 
     Inputs:
         - **x** (Tensor) - Tensor of shape :math:`(batch\_size, input\_size)` .
-        - **hx** (tuple) - A tuple of two Tensors (h_0, c_0) both of data type mindspore.float32
+        - **hx** (tuple) - A tuple of two Tensors (h_0, c_0) both of data type torch.float32
           and shape :math:`(batch\_size, hidden\_size)` .
 
     Outputs:
@@ -235,7 +235,7 @@ class LSTMCell(RNNCellBase):
         (3, 16)
     """
     def __init__(self, input_size: int, hidden_size: int, bias: bool = True,
-                 dtype=mindspore.float32):
+                 dtype=torch.float32):
         super().__init__(input_size, hidden_size, bias, num_chunks=4, dtype=dtype)
         self.support_non_tensor_inputs = True
 
@@ -268,11 +268,11 @@ class GRUCell(RNNCellBase):
         input_size (int): Number of features of input.
         hidden_size (int):  Number of features of hidden layer.
         bias (bool): Whether the cell has bias :math:`b_{in}` and :math:`b_{hn}`. Default: ``True`` .
-        dtype (:class:`mindspore.dtype`): Dtype of Parameters. Default: ``mstype.float32`` .
+        dtype (:class:`torch.dtype`): Dtype of Parameters. Default: ``mstype.float32`` .
 
     Inputs:
         - **x** (Tensor) - Tensor of shape :math:`(batch\_size, input\_size)` .
-        - **hx** (Tensor) - Tensor of data type mindspore.float32 and shape :math:`(batch\_size, hidden\_size)` .
+        - **hx** (Tensor) - Tensor of data type torch.float32 and shape :math:`(batch\_size, hidden\_size)` .
 
     Outputs:
         - **hx'** (Tensor) - Tensor of shape :math:`(batch\_size, hidden\_size)` .
@@ -298,7 +298,7 @@ class GRUCell(RNNCellBase):
         (3, 16)
     """
     def __init__(self, input_size: int, hidden_size: int, bias: bool = True,
-                 dtype=mindspore.float32):
+                 dtype=torch.float32):
         super().__init__(input_size, hidden_size, bias, num_chunks=3, dtype=dtype)
 
     def forward(self, x, hx):

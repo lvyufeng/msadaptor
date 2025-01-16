@@ -4,7 +4,7 @@
 from collections import namedtuple
 from typing import List, Sequence
 
-from mindspore import Tensor
+from torch import Tensor
 
 from . import Sequential, ModuleList, Linear
 from .module import Module

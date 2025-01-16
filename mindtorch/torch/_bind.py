@@ -1,4 +1,4 @@
-from mindspore import float16, bfloat16
+from torch import float16, bfloat16
 from .configs import DEFAULT_DTYPE, DEFAULT_DEVICE
 
 AUTO_CAST_DTYE = {

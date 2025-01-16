@@ -1,6 +1,6 @@
 """sparse"""
 from typing import Optional
-from mindspore import Tensor
+from torch import Tensor
 from ..parameter import Parameter
 from .module import Module
 from .. import functional as F

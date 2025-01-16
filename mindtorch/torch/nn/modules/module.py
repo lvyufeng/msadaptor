@@ -1562,7 +1562,7 @@ class Module:
         def forward_fn(*args, **kwargs):
             return self.forward(*args, **kwargs)
 
-        forward_fn = mindspore.jit(forward_fn, *args, **kwargs)
+        # forward_fn = mindspore.jit(forward_fn, *args, **kwargs)
         self._compiled_call_impl = forward_fn
 
     @property

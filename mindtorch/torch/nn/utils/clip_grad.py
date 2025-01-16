@@ -4,11 +4,11 @@ import functools
 from typing import Union, Iterable, Optional
 from typing_extensions import deprecated
 
-import mindspore
+import torch
 from ... import ops
 from ...autograd import no_grad
 
-_tensor_or_tensors = Union[mindspore.Tensor, Iterable[mindspore.Tensor]]
+_tensor_or_tensors = Union[torch.Tensor, Iterable[torch.Tensor]]
 
 __all__ = ['clip_grad_norm_', 'clip_grad_norm', 'clip_grad_value_']
 
@@ -29,7 +29,7 @@ def _no_grad(func):
 @_no_grad
 def clip_grad_norm_(
         parameters: _tensor_or_tensors, max_norm: float, norm_type: float = 2.0,
-        error_if_nonfinite: bool = False, foreach: Optional[bool] = None) -> mindspore.Tensor:
+        error_if_nonfinite: bool = False, foreach: Optional[bool] = None) -> torch.Tensor:
     r"""Clip the gradient norm of an iterable of parameters.
 
     The norm is computed over all gradients together, as if they were
@@ -52,13 +52,13 @@ def clip_grad_norm_(
     Returns:
         Total norm of the parameter gradients (viewed as a single vector).
     """
-    if isinstance(parameters, mindspore.Tensor):
+    if isinstance(parameters, torch.Tensor):
         parameters = [parameters]
     grads = [p.grad for p in parameters if p.grad is not None]
     max_norm = float(max_norm)
     norm_type = float(norm_type)
     if len(grads) == 0:
-        return mindspore.tensor(0.)
+        return torch.tensor(0.)
     if norm_type == inf:
         norms = [g.abs().max() for g in grads]
         total_norm = norms[0] if len(norms) == 1 else ops.max(ops.stack(norms))
@@ -88,7 +88,7 @@ def clip_grad_norm_(
 )
 def clip_grad_norm(
         parameters: _tensor_or_tensors, max_norm: float, norm_type: float = 2.,
-        error_if_nonfinite: bool = False, foreach: Optional[bool] = None) -> mindspore.Tensor:
+        error_if_nonfinite: bool = False, foreach: Optional[bool] = None) -> torch.Tensor:
     r"""Clip the gradient norm of an iterable of parameters.
 
     .. warning::

@@ -16,13 +16,6 @@
 import math
 import warnings
 
-import mindspore
-from mindspore.ops._primitive_cache import _get_cache_prim
-from mindspore.ops.operations._rl_inner_ops import CudnnGRU
-from mindspore.ops import DynamicGRUV2, DynamicRNN, ReverseV2, ReverseSequence
-from mindspore.ops import LSTM as LSTMOP
-from mindspore.nn.layer.rnn_cells import _rnn_relu_cell, _rnn_tanh_cell, _gru_cell, _lstm_cell
-
 from ..parameter import Parameter
 from .module import Module
 from .dropout import Dropout
@@ -45,13 +38,13 @@ def sequence_mask(lengths, maxlen):
     """generate mask matrix by seq_length"""
     range_vector = ops.arange(start=0, end=maxlen, step=1, dtype=lengths.dtype)
     result = range_vector < lengths.view(lengths.shape + (1,))
-    return result.astype(mindspore.int32)
+    return result.astype(torch.int32)
 
 
 def select_by_mask(inputs, mask):
     """mask hiddens by mask matrix"""
     return mask.view(mask.shape + (1,)).swapaxes(0, 1) \
-               .expand_as(inputs).astype(mindspore.bool_) * inputs
+               .expand_as(inputs).astype(torch.bool_) * inputs
 
 
 def get_hidden(output, seq_length):
@@ -107,9 +100,9 @@ class _DynamicRNNBase(Module):
         else:
             hidden_size = h.shape[-1]
             zero_output = ops.zeros_like(h_t)
-        seq_length = seq_length.to(mindspore.float32)
+        seq_length = seq_length.to(torch.float32)
         seq_length = ops.broadcast_to(seq_length, (hidden_size, -1))
-        seq_length = seq_length.to(mindspore.int32)
+        seq_length = seq_length.to(torch.int32)
         seq_length = ops.transpose(seq_length, 1, 0)
 
         outputs = []
@@ -166,7 +159,6 @@ class _DynamicGRUCPUGPU(Module):
 
     def __init__(self):
         super().__init__()
-        self.is_gpu = mindspore.get_context("device_target") == "GPU"
 
     def forward(self, x, h_0, seq_length, w_ih, w_hh, b_ih, b_hh):
         '''_DynamicGRUCPUGPU'''
@@ -235,7 +227,6 @@ class _DynamicLSTMCPUGPU(Module):
 
     def __init__(self):
         super().__init__()
-        self.is_gpu = mindspore.get_context("device_target") == "GPU"
 
     def forward(self, x, h_0, seq_length, w_ih, w_hh, b_ih, b_hh):
         '''Dynamic LSTM module on CPU and GPU'''
@@ -300,11 +291,11 @@ class _DynamicLSTMAscend(Module):
                             b_ih_f + b_hh_f, \
                             b_ih_o + b_hh_o), 0)
 
-        outputs, h, c, _, _, _, _, _ = self.lstm(x.to(mindspore.float16), \
-                                                 ops.transpose(weight, 1, 0).to(mindspore.float16), \
-                                                 bias.to(mindspore.float16), None, \
-                                                 h_0[0].unsqueeze(0).to(mindspore.float16), \
-                                                 h_0[1].unsqueeze(0).to(mindspore.float16))
+        outputs, h, c, _, _, _, _, _ = self.lstm(x.to(torch.float16), \
+                                                 ops.transpose(weight, 1, 0).to(torch.float16), \
+                                                 bias.to(torch.float16), None, \
+                                                 h_0[0].unsqueeze(0).to(torch.float16), \
+                                                 h_0[1].unsqueeze(0).to(torch.float16))
         if seq_length is not None:
             h = get_hidden(h, seq_length)
             c = get_hidden(c, seq_length)
@@ -334,7 +325,6 @@ class _RNNBase(Module):
                            "num_layers greater than 1, but got dropout={} and "
                            "num_layers={}".format(dropout, num_layers))
 
-        is_ascend = mindspore.get_context("device_target") == "Ascend"
         if mode == "LSTM":
             gate_size = 4 * hidden_size
             self.rnn = _DynamicLSTMAscend() if is_ascend else _DynamicLSTMCPUGPU()
@@ -542,12 +532,12 @@ class RNN(_RNNBase):
             RNN layer except the last layer. Default ``0.0`` . The range of dropout is [0.0, 1.0).
         bidirectional (bool): Specifies whether it is a bidirectional RNN,
             num_directions=2 if bidirectional=True otherwise 1. Default: ``False`` .
-        dtype (:class:`mindspore.dtype`): Dtype of Parameters. Default: ``mstype.float32`` .
+        dtype (:class:`torch.dtype`): Dtype of Parameters. Default: ``mstype.float32`` .
 
     Inputs:
-        - **x** (Tensor) - Tensor of data type mindspore.float32 or mindspore.float16 and
+        - **x** (Tensor) - Tensor of data type torch.float32 or torch.float16 and
           shape :math:`(seq\_len, batch\_size, input\_size)` or :math:`(batch\_size, seq\_len, input\_size)` .
-        - **hx** (Tensor) - Tensor of data type mindspore.float32 or mindspore.float16 and
+        - **hx** (Tensor) - Tensor of data type torch.float32 or torch.float16 and
           shape :math:`(num\_directions * num\_layers, batch\_size, hidden\_size)` .
         - **seq_length** (Tensor) - The length of each sequence in an input batch.
           Tensor of shape :math:`(batch\_size)` . Default: ``None`` .
@@ -643,12 +633,12 @@ class GRU(_RNNBase):
             GRU layer except the last layer. Default ``0.0`` . The range of dropout is [0.0, 1.0).
         bidirectional (bool): Specifies whether it is a bidirectional GRU,
             num_directions=2 if bidirectional=True otherwise 1. Default: ``False`` .
-        dtype (:class:`mindspore.dtype`): Dtype of Parameters. Default: ``mstype.float32`` .
+        dtype (:class:`torch.dtype`): Dtype of Parameters. Default: ``mstype.float32`` .
 
     Inputs:
-        - **x** (Tensor) - Tensor of data type mindspore.float32 or mindspore.float16 and
+        - **x** (Tensor) - Tensor of data type torch.float32 or torch.float16 and
           shape :math:`(seq\_len, batch\_size, input\_size)` or :math:`(batch\_size, seq\_len, input\_size)`.
-        - **hx** (Tensor) - Tensor of data type mindspore.float32 or mindspore.float16 and
+        - **hx** (Tensor) - Tensor of data type torch.float32 or torch.float16 and
           shape :math:`(num\_directions * num\_layers, batch\_size, hidden\_size)`.
         - **seq_length** (Tensor) - The length of each sequence in an input batch.
           Tensor of shape :math:`(\text{batch_size})`. Default: ``None`` .
@@ -743,13 +733,13 @@ class LSTM(_RNNBase):
             LSTM layer except the last layer. Default ``0`` . The range of dropout is [0.0, 1.0).
         bidirectional (bool): Specifies whether it is a bidirectional LSTM,
             num_directions=2 if bidirectional=True otherwise 1. Default: ``False`` .
-        dtype (:class:`mindspore.dtype`): Dtype of Parameters. Default: ``mstype.float32`` .
+        dtype (:class:`torch.dtype`): Dtype of Parameters. Default: ``mstype.float32`` .
 
     Inputs:
-        - **x** (Tensor) - Tensor of data type mindspore.float32 or mindspore.float16 and
+        - **x** (Tensor) - Tensor of data type torch.float32 or torch.float16 and
           shape :math:`(seq\_len, batch\_size, input\_size)` or :math:`(batch\_size, seq\_len, input\_size)` .
-        - **hx** (tuple) - A tuple of two Tensors (h_0, c_0) both of data type mindspore.float32
-          or mindspore.float16 and shape :math:`(num\_directions * num\_layers, batch\_size, hidden\_size)` .
+        - **hx** (tuple) - A tuple of two Tensors (h_0, c_0) both of data type torch.float32
+          or torch.float16 and shape :math:`(num\_directions * num\_layers, batch\_size, hidden\_size)` .
         - **seq_length** (Tensor) - The length of each sequence in an input batch.
           Tensor of shape :math:`(batch\_size)`. Default: ``None`` .
           This input indicates the real sequence length before padding to avoid padded elements

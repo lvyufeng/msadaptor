@@ -22,7 +22,7 @@ from typing import (
 )
 from weakref import ref
 
-from mindspore import Tensor
+from torch import Tensor
 
 from .optimizer import Optimizer
 

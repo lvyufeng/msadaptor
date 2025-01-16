@@ -28,7 +28,6 @@ from typing import (
     Union,
 )
 
-from mindspore.common._stub_tensor import StubTensor
 import torch
 from torch import Tensor
 # from torch._utils import _get_available_device_type, _get_device_module
@@ -259,9 +258,7 @@ def _write_item(
         stream.write(data.getbuffer())
     else:
         assert isinstance(data, torch.Tensor)
-        if isinstance(data, StubTensor):
-            data = data.stub_sync()
-        # assert data.device == torch.device("cpu")
+        assert data.device == torch.device("cpu")
         torch.save(data, cast(IO[bytes], stream))
     length = stream.tell() - offset
     return WriteResult(

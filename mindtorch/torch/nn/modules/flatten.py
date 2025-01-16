@@ -1,6 +1,6 @@
 """flatten"""
 from typing import Tuple, Union, List
-from mindspore import Tensor
+from torch import Tensor
 
 from .module import Module
 from ...ops import flatten, unflatten

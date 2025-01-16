@@ -1,7 +1,7 @@
 """activation"""
 from typing import Optional, Tuple
-import mindspore
-from mindspore import Tensor
+import torch
+from torch import Tensor
 from ..parameter import Parameter
 
 from .module import Module
@@ -395,20 +395,20 @@ class MultiheadAttention(Module):
 
     - self attention is being computed (i.e., ``query``, ``key``, and ``value`` are the same tensor).
     - inputs are batched (3D) with ``batch_first==True``
-    - Either autograd is disabled (using ``mindspore.inference_mode`` or ``mindspore.no_grad``) or no tensor argument ``requires_grad``
+    - Either autograd is disabled (using ``torch.inference_mode`` or ``torch.no_grad``) or no tensor argument ``requires_grad``
     - training is disabled (using ``.eval()``)
     - ``add_bias_kv`` is ``False``
     - ``add_zero_attn`` is ``False``
     - ``batch_first`` is ``True`` and the input is batched
     - ``kdim`` and ``vdim`` are equal to ``embed_dim``
-    - if a `NestedTensor <https://pymindspore.org/docs/stable/nested.html>`_ is passed, neither ``key_padding_mask``
+    - if a `NestedTensor <https://pytorch.org/docs/stable/nested.html>`_ is passed, neither ``key_padding_mask``
       nor ``attn_mask`` is passed
     - autocast is disabled
 
     If the optimized inference fastpath implementation is in use, a
-    `NestedTensor <https://pymindspore.org/docs/stable/nested.html>`_ can be passed for
+    `NestedTensor <https://pytorch.org/docs/stable/nested.html>`_ can be passed for
     ``query``/``key``/``value`` to represent padding more efficiently than using a
-    padding mask. In this case, a `NestedTensor <https://pymindspore.org/docs/stable/nested.html>`_
+    padding mask. In this case, a `NestedTensor <https://pytorch.org/docs/stable/nested.html>`_
     will be returned, and an additional speedup proportional to the fraction of the input
     that is padding can be expected.
 
@@ -438,8 +438,8 @@ class MultiheadAttention(Module):
     """
 
     __constants__ = ['batch_first']
-    bias_k: Optional[mindspore.Tensor]
-    bias_v: Optional[mindspore.Tensor]
+    bias_k: Optional[torch.Tensor]
+    bias_v: Optional[torch.Tensor]
 
     def __init__(self, embed_dim, num_heads, dropout=0., bias=True, add_bias_kv=False, add_zero_attn=False,
                  kdim=None, vdim=None, batch_first=False, dtype=None) -> None:

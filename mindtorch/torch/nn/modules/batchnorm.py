@@ -1,7 +1,6 @@
 """batch norm"""
 from typing import Optional
-import mindspore
-from mindspore import Tensor
+from torch import Tensor
 from ..parameter import Parameter
 
 from .module import Module
@@ -46,7 +45,7 @@ class _NormBase(Module):
             self.running_mean: Optional[Tensor]
             self.running_var: Optional[Tensor]
             self.register_buffer('num_batches_tracked',
-                                 Tensor(0, dtype=mindspore.int64))
+                                 Tensor(0, dtype=torch.int64))
             self.num_batches_tracked: Optional[Tensor]
         else:
             self.register_buffer("running_mean", None)

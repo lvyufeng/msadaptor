@@ -2,7 +2,8 @@
 """conv"""
 import math
 from typing import Optional, Tuple, Union, List
-from mindspore import Tensor, ops as mops
+
+from torch import Tensor
 from ..parameter import Parameter
 from .module import Module
 from ..common_types import _size_2_t, _size_1_t

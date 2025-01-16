@@ -3,8 +3,8 @@
 # mypy: allow-untyped-defs
 from typing import Tuple, Union
 
-import mindspore
-from mindspore import Tensor
+import torch
+from torch import Tensor
 from .. import ops
 from .optimizer import (
     _get_scalar_dtype,
@@ -61,12 +61,12 @@ class Adam(Optimizer):
                 if len(p_state) != 0 and not ops.is_tensor(p_state["step"]):
                     step_val = float(p_state["step"])
                     p_state["step"] = (
-                        mindspore.tensor(
+                        torch.tensor(
                             step_val,
                             dtype=_get_scalar_dtype(is_fused=fused),
                         )
                         if group["capturable"] or group["fused"]
-                        else mindspore.tensor(step_val, dtype=_get_scalar_dtype())
+                        else torch.tensor(step_val, dtype=_get_scalar_dtype())
                     )
 
     def step(self, grads=None):

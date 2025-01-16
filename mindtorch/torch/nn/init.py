@@ -143,7 +143,7 @@ def uniform_(
     :math:`\mathcal{U}(a, b)`.
 
     Args:
-        tensor: an n-dimensional `mindspore.Tensor`
+        tensor: an n-dimensional `torch.Tensor`
         a: the lower bound of the uniform distribution
         b: the upper bound of the uniform distribution
 
@@ -165,7 +165,7 @@ def normal_(
     :math:`\mathcal{N}(\text{mean}, \text{std}^2)`.
 
     Args:
-        tensor: an n-dimensional `mindspore.Tensor`
+        tensor: an n-dimensional `torch.Tensor`
         mean: the mean of the normal distribution
         std: the standard deviation of the normal distribution
 
@@ -193,7 +193,7 @@ def trunc_normal_(
     best when :math:`a \leq \text{mean} \leq b`.
 
     Args:
-        tensor: an n-dimensional `mindspore.Tensor`
+        tensor: an n-dimensional `torch.Tensor`
         mean: the mean of the normal distribution
         std: the standard deviation of the normal distribution
         a: the minimum cutoff value
@@ -210,7 +210,7 @@ def constant_(tensor: Tensor, val: float) -> Tensor:
     r"""Fill the input Tensor with the value :math:`\text{val}`.
 
     Args:
-        tensor: an n-dimensional `mindspore.Tensor`
+        tensor: an n-dimensional `torch.Tensor`
         val: the value to fill the tensor with
 
     Examples:
@@ -225,7 +225,7 @@ def ones_(tensor: Tensor) -> Tensor:
     r"""Fill the input Tensor with the scalar value `1`.
 
     Args:
-        tensor: an n-dimensional `mindspore.Tensor`
+        tensor: an n-dimensional `torch.Tensor`
 
     Examples:
         >>> w = torch.empty(3, 5)
@@ -239,7 +239,7 @@ def zeros_(tensor: Tensor) -> Tensor:
     r"""Fill the input Tensor with the scalar value `0`.
 
     Args:
-        tensor: an n-dimensional `mindspore.Tensor`
+        tensor: an n-dimensional `torch.Tensor`
 
     Examples:
         >>> w = torch.empty(3, 5)
@@ -257,7 +257,7 @@ def dirac_(tensor, groups=1):
     of groups>1, each group of channels preserves identity
 
     Args:
-        tensor: a {3, 4, 5}-dimensional `mindspore.Tensor`
+        tensor: a {3, 4, 5}-dimensional `torch.Tensor`
         groups (int, optional): number of groups in the conv layer (default: 1)
     Examples:
         >>> w = torch.empty(3, 16, 5, 5)
@@ -340,7 +340,7 @@ def xavier_uniform_(
     Also known as Glorot initialization.
 
     Args:
-        tensor: an n-dimensional `mindspore.Tensor`
+        tensor: an n-dimensional `torch.Tensor`
         gain: an optional scaling factor
         generator: the torch Generator to sample from (default: None)
 
@@ -379,7 +379,7 @@ def xavier_normal_(
     Also known as Glorot initialization.
 
     Args:
-        tensor: an n-dimensional `mindspore.Tensor`
+        tensor: an n-dimensional `torch.Tensor`
         gain: an optional scaling factor
         generator: the torch Generator to sample from (default: None)
 
@@ -430,7 +430,7 @@ def kaiming_uniform_(
     Also known as He initialization.
 
     Args:
-        tensor: an n-dimensional `mindspore.Tensor`
+        tensor: an n-dimensional `torch.Tensor`
         a: the negative slope of the rectifier used after this layer (only
             used with ``'leaky_relu'``)
         mode: either ``'fan_in'`` (default) or ``'fan_out'``. Choosing ``'fan_in'``
@@ -484,7 +484,7 @@ def kaiming_normal_(
     Also known as He initialization.
 
     Args:
-        tensor: an n-dimensional `mindspore.Tensor`
+        tensor: an n-dimensional `torch.Tensor`
         a: the negative slope of the rectifier used after this layer (only
             used with ``'leaky_relu'``)
         mode: either ``'fan_in'`` (default) or ``'fan_out'``. Choosing ``'fan_in'``
@@ -529,7 +529,7 @@ def orthogonal_(
     trailing dimensions are flattened.
 
     Args:
-        tensor: an n-dimensional `mindspore.Tensor`, where :math:`n \geq 2`
+        tensor: an n-dimensional `torch.Tensor`, where :math:`n \geq 2`
         gain: optional scaling factor
 
     Examples:
@@ -578,7 +578,7 @@ def sparse_(
     Hessian-free optimization` - Martens, J. (2010).
 
     Args:
-        tensor: an n-dimensional `mindspore.Tensor`
+        tensor: an n-dimensional `torch.Tensor`
         sparsity: The fraction of elements in each column to be set to zero
         std: the standard deviation of the normal distribution used to generate
             the non-zero values

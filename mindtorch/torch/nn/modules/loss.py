@@ -1,7 +1,7 @@
 """loss"""
 from typing import Callable, Optional
 from typing_extensions import deprecated
-from mindspore import Tensor
+from torch import Tensor
 
 from .distance import PairwiseDistance
 from .module import Module

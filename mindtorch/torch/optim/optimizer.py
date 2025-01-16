@@ -120,9 +120,9 @@ def _view_as_real(params, *state_and_grads):
 
 def _get_scalar_dtype(is_fused=None):
     if is_fused:
-        return mindspore.float32
+        return torch.float32
     return (
-        mindspore.float64 if get_default_dtype() == mindspore.float64 else mindspore.float32
+        torch.float64 if get_default_dtype() == torch.float64 else torch.float32
     )
 
 
@@ -497,7 +497,7 @@ class Optimizer:
                 break
         if key == "step":
             if capturable or fused:
-                return value.to(dtype=mindspore.float32)
+                return value.to(dtype=torch.float32)
             else:
                 return value
         else:

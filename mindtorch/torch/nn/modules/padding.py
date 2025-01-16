@@ -1,6 +1,6 @@
 """padding"""
 from typing import Sequence, Tuple
-from mindspore import Tensor
+from torch import Tensor
 
 from .module import Module
 from ._utils import _pair, _quadruple, _ntuple

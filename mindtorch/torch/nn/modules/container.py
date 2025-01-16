@@ -5,7 +5,7 @@ from typing import Any, Dict, Iterable, Iterator, Mapping, Optional, Tuple, Unio
 from collections import OrderedDict, abc as container_abcs
 from typing_extensions import Self
 
-import mindspore
+import torch
 from ..parameter import Parameter
 
 from .module import Module
@@ -601,7 +601,7 @@ class ParameterDict(Module):
     will preserve their ordering.
 
     Note that the constructor, assigning an element of the dictionary and the
-    :meth:`~torch.nn.ParameterDict.update` method will convert any :class:`~mindspore.Tensor` into
+    :meth:`~torch.nn.ParameterDict.update` method will convert any :class:`~torch.Tensor` into
     :class:`~torch.nn.Parameter`.
 
     Args:
@@ -651,7 +651,7 @@ class ParameterDict(Module):
         # call into this function.
         self._keys[key] = None
         attr = self._key_to_attr(key)
-        if isinstance(value, mindspore.Tensor) and not isinstance(value, Parameter):
+        if isinstance(value, torch.Tensor) and not isinstance(value, Parameter):
             value = Parameter(value)
         setattr(self, attr, value)
 
@@ -797,7 +797,7 @@ class ParameterDict(Module):
     def extra_repr(self) -> str:
         child_lines = []
         for k, p in self.items():
-            if isinstance(p, mindspore.Tensor):
+            if isinstance(p, torch.Tensor):
                 size_str = 'x'.join(str(size) for size in p.size())
                 parastr = '{} containing: [{} of size {}]'.format(
                     "Parameter" if isinstance(p, Parameter) else "Tensor",

@@ -1,6 +1,6 @@
 """upsample"""
 from typing import Optional
-from mindspore import Tensor
+from torch import Tensor
 
 from .module import Module
 from .. import functional as F

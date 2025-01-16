@@ -137,21 +137,22 @@ def npu_apply_adam_w(
 ):
 
     var, m, v = out
-    var, m, v = adamw_opt(
+    var, m, v = execute(
+        'apply_adamw',
         var,
         m,
         v,
-        beta1_power=beta1_power,
-        beta2_power=beta2_power,
-        lr=lr,
-        weight_decay=weight_decay,
-        beta1=beta1,
-        beta2=beta2,
-        epsilon=epsilon,
-        grad=grad,
-        max_grad_norm=max_grad_norm,
-        amsgrad=amsgrad,
-        maximize=maximize,
+        beta1_power,
+        beta2_power,
+        lr,
+        weight_decay,
+        beta1,
+        beta2,
+        epsilon,
+        grad,
+        max_grad_norm,
+        amsgrad,
+        maximize,
     )
     return var, m, v
 

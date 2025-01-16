@@ -214,7 +214,7 @@ def fast_gelu(x):
     return ops.fast_gelu(x)
 
 def swiglu(x, dim=-1):
-    return ops.swiglu(x, dim)
+    return execute('swiglu', x, dim)
 
 def apply_rotary_pos_emb(query, key, cos, sin, position_ids, cos_format=0):
     return mindspore.ops.auto_generate.gen_ops_def.apply_rotary_pos_emb_(

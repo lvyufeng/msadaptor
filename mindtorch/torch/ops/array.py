@@ -409,7 +409,7 @@ def tensor_setitem(self, index, value):
     if not remain_indexes:
         execute('inplace_copy', self_viewed, value)
         return self
-    execute('inplace_index_put', self_viewed, remain_indexes, value)
+    execute('inplace_index_put', self_viewed, remain_indexes, value, False) # accumulate=False
     return self
 
 _SLICE_ERROR = (

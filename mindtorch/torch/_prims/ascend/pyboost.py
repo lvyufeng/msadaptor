@@ -188,3 +188,15 @@ def flash_attention_score_npu(*args):
     return pyboost_flash_attention_score(flash_attention_score_op, args)
 
 __all__.append('flash_attention_score_npu')
+
+argmax_with_value_op = ArgMaxWithValue().set_device('Ascend')
+def argmax_with_value_npu(*args):
+    return pyboost_argmax_with_value(argmax_with_value_op, args)
+
+__all__.append('argmax_with_value_npu')
+
+argmin_with_value_op = ArgMinWithValue().set_device('Ascend')
+def argmin_with_value_npu(*args):
+    return pyboost_argmin_with_value(argmin_with_value_op, args)
+
+__all__.append('argmin_with_value_npu')

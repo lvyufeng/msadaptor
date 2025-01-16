@@ -174,6 +174,12 @@ def argmax_with_value_cpu(*args):
 
 __all__.append('argmax_with_value_cpu')
 
+argmin_with_value_op = ArgMinWithValue().set_device('CPU')
+def argmin_with_value_cpu(*args):
+    return pyboost_argmin_with_value(argmin_with_value_op, args)
+
+__all__.append('argmin_with_value_cpu')
+
 log_softmax_op = LogSoftmax().set_device('CPU')
 def log_softmax_cpu(*args):
     return pyboost_log_softmax(log_softmax_op, args)

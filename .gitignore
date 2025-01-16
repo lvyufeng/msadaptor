@@ -176,3 +176,6 @@ ge_check_op.json
 data/
 *.pth
 kernel_meta/
+
+# for macOS
+.DS_Store

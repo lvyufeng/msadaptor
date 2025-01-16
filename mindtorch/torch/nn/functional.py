@@ -3,17 +3,11 @@ import math
 import warnings
 from typing import Optional, Tuple, List
 import numpy as np
-import mindspore
-from mindspore import ops, Tensor
-from mindspore.ops._primitive_cache import _get_cache_prim
-from mindspore.ops.function.random_func import _get_seed, _set_prim_op_user_data
-from mindspore.ops.operations import nn_ops
 from mindspore.ops.auto_generate.gen_arg_handler import dtype_to_type_id
 from mindspore.common.generator import default_generator
 
 import torch
 from torch.executor import execute
-from ..configs import DEVICE_TARGET, ON_ORANGE_PI, use_pyboost
 
 generator_step_ = 12
 
@@ -78,7 +72,7 @@ def selu(input):
 def hardsigmoid(input, inplace=False):
     return ops.hardsigmoid(input)
 
-def hardswish(input: Tensor, inplace: bool = False) -> Tensor:
+def hardswish(input: torch.Tensor, inplace: bool = False) -> torch.Tensor:
     return ops.hardswish(input)
 
 def hardshrink(input, lambd=0.5):
@@ -185,7 +179,7 @@ def binary_cross_entropy_with_logits(input, target, weight=None, reduction='mean
         return mindspore.mint.nn.functional.binary_cross_entropy_with_logits(input, target, weight, reduction, pos_weight)
     return ops.binary_cross_entropy_with_logits(input, target.astype(input.dtype), weight, pos_weight, reduction)
 
-def gumbel_softmax(logits: Tensor, tau: float = 1, hard: bool = False, eps: float = 1e-10, dim: int = -1) -> Tensor:
+def gumbel_softmax(logits: torch.Tensor, tau: float = 1, hard: bool = False, eps: float = 1e-10, dim: int = -1) -> torch.Tensor:
     if eps != 1e-10:
         warnings.warn("`eps` parameter is deprecated and has no effect.")
 
@@ -418,7 +412,7 @@ def normalize(input, p=2.0, dim=1, eps=1e-6):
     Normalize a tensor along a specified dimension.
 
     Args:
-        input (Tensor): The input tensor to be normalized.
+        input (torch.Tensor): The input tensor to be normalized.
         p (float, optional): The power parameter for the normalization. Default is 2.0.
         dim (int, optional): The dimension along which to normalize the tensor. Default is 1.
 
@@ -581,12 +575,12 @@ def _in_projection(
 
 
 def _in_projection_packed(
-    q: Tensor,
-    k: Tensor,
-    v: Tensor,
-    w: Tensor,
-    b: Optional[Tensor] = None,
-) -> List[Tensor]:
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    w: torch.Tensor,
+    b: Optional[torch.Tensor] = None,
+) -> List[torch.Tensor]:
     r"""
     Performs the in-projection step of the attention operation, using packed weights.
     Output is a triple containing projection tensors for query, key and value.
@@ -646,7 +640,7 @@ def _in_projection_packed(
 
 def scaled_dot_product_attention(query, key, value, attn_mask, dropout_p, is_causal):
     embed_size = query.shape[-1]
-    scaling_factor = ops.sqrt(ops.sqrt(mindspore.Tensor(embed_size, dtype=query.dtype)))
+    scaling_factor = ops.sqrt(ops.sqrt(torch.Tensor(embed_size, dtype=query.dtype)))
     query = query / scaling_factor
 
     if is_causal:
@@ -712,32 +706,32 @@ def _mha_shape_check(query, key, value, key_padding_mask, attn_mask, num_heads):
 
 
 def multi_head_attention_forward(
-    query: Tensor,
-    key: Tensor,
-    value: Tensor,
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
     embed_dim_to_check: int,
     num_heads: int,
-    in_proj_weight: Optional[Tensor],
-    in_proj_bias: Optional[Tensor],
-    bias_k: Optional[Tensor],
-    bias_v: Optional[Tensor],
+    in_proj_weight: Optional[torch.Tensor],
+    in_proj_bias: Optional[torch.Tensor],
+    bias_k: Optional[torch.Tensor],
+    bias_v: Optional[torch.Tensor],
     add_zero_attn: bool,
     dropout_p: float,
-    out_proj_weight: Tensor,
-    out_proj_bias: Optional[Tensor],
+    out_proj_weight: torch.Tensor,
+    out_proj_bias: Optional[torch.Tensor],
     training: bool = True,
-    key_padding_mask: Optional[Tensor] = None,
+    key_padding_mask: Optional[torch.Tensor] = None,
     need_weights: bool = True,
-    attn_mask: Optional[Tensor] = None,
+    attn_mask: Optional[torch.Tensor] = None,
     use_separate_proj_weight: bool = False,
-    q_proj_weight: Optional[Tensor] = None,
-    k_proj_weight: Optional[Tensor] = None,
-    v_proj_weight: Optional[Tensor] = None,
-    static_k: Optional[Tensor] = None,
-    static_v: Optional[Tensor] = None,
+    q_proj_weight: Optional[torch.Tensor] = None,
+    k_proj_weight: Optional[torch.Tensor] = None,
+    v_proj_weight: Optional[torch.Tensor] = None,
+    static_k: Optional[torch.Tensor] = None,
+    static_v: Optional[torch.Tensor] = None,
     average_attn_weights: bool = True,
     is_causal: bool = False,
-) -> Tuple[Tensor, Optional[Tensor]]:
+) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
     r"""
     Args:
         query, key, value: map a query and a set of key-value pairs to an output.
@@ -789,14 +783,14 @@ def multi_head_attention_forward(
         - value: :math:`(S, E)` or :math:`(S, N, E)` where S is the source sequence length, N is the batch size, E is
           the embedding dimension.
         - key_padding_mask: :math:`(S)` or :math:`(N, S)` where N is the batch size, S is the source sequence length.
-          If a FloatTensor is provided, it will be directly added to the value.
-          If a BoolTensor is provided, the positions with the
+          If a Floattorch.Tensor is provided, it will be directly added to the value.
+          If a Booltorch.Tensor is provided, the positions with the
           value of ``True`` will be ignored while the position with the value of ``False`` will be unchanged.
         - attn_mask: 2D mask :math:`(L, S)` where L is the target sequence length, S is the source sequence length.
           3D mask :math:`(N*num_heads, L, S)` where N is the batch size, L is the target sequence length,
           S is the source sequence length. attn_mask ensures that position i is allowed to attend the unmasked
-          positions. If a BoolTensor is provided, positions with ``True``
-          are not allowed to attend while ``False`` values will be unchanged. If a FloatTensor
+          positions. If a Booltorch.Tensor is provided, positions with ``True``
+          are not allowed to attend while ``False`` values will be unchanged. If a Floattorch.Tensor
           is provided, it will be added to the attention weight.
         - static_k: :math:`(N*num_heads, S, E/num_heads)`, where S is the source sequence length,
           N is the batch size, E is the embedding dimension. E/num_heads is the head dimension.
@@ -867,7 +861,7 @@ def multi_head_attention_forward(
 
     assert embed_dim == embed_dim_to_check, \
         f"was expecting embedding dimension of {embed_dim_to_check}, but got {embed_dim}"
-    if isinstance(embed_dim, mindspore.Tensor):
+    if isinstance(embed_dim, torch.Tensor):
         # embed_dim can be a tensor when JIT tracing
         head_dim = embed_dim.div(num_heads, rounding_mode='trunc')
     else:
@@ -1036,13 +1030,13 @@ def multi_head_attention_forward(
         return attn_output, None
 
 def _canonical_mask(
-        mask: Optional[mindspore.Tensor],
+        mask: Optional[torch.Tensor],
         mask_name: str,
         other_type: Optional[int],
         other_name: str,
         target_type: int,
         check_other: bool = True,
-) -> Optional[mindspore.Tensor]:
+) -> Optional[torch.Tensor]:
     if mask is not None:
         _mask_dtype = mask.dtype
         _mask_is_float = ops.is_floating_point(mask)
@@ -1057,19 +1051,19 @@ def _canonical_mask(
                 )
         if not _mask_is_float:
             zero_tensor = ops.zeros_like(mask, dtype=target_type)
-            mask = ops.where(mask, mindspore.Tensor(float("-inf"), target_type), zero_tensor)
+            mask = ops.where(mask, torch.Tensor(float("-inf"), target_type), zero_tensor)
             # mask = (
             #     ops.zeros_like(mask, dtype=target_type)
             #     .masked_fill_(mask, float("-inf"))
             # )
     return mask
 
-def _none_or_dtype(input: Optional[mindspore.Tensor]) -> Optional[int]:
+def _none_or_dtype(input: Optional[torch.Tensor]) -> Optional[int]:
     if input is None:
         return None
-    elif isinstance(input, mindspore.Tensor):
+    elif isinstance(input, torch.Tensor):
         return input.dtype
-    raise RuntimeError("input to _none_or_dtype() must be None or mindspore.Tensor")
+    raise RuntimeError("input to _none_or_dtype() must be None or torch.Tensor")
 
 def unfold(input, kernel_size, dilation=1, padding=0, stride=1):
     if use_pyboost():
@@ -1155,9 +1149,9 @@ def cosine_similarity(x1, x2, dim=1, eps=1e-8):
 #     return ops.pairwise_distance
 
 def make_attention_mask(
-    query_input: Tensor,
-    key_input: Tensor,
-    dtype=mindspore.float32,
+    query_input: torch.Tensor,
+    key_input: torch.Tensor,
+    dtype=torch.float32,
 ):
     """Mask-making helper for attention weights.
 
@@ -1181,8 +1175,8 @@ def make_attention_mask(
 
 
 def make_causal_mask(
-    x: Tensor, dtype=mindspore.float32
-) -> Tensor:
+    x: torch.Tensor, dtype=torch.float32
+) -> torch.Tensor:
     """Make a causal mask for self-attention.
 
     In case of 1d inputs (i.e., `[batch..., len]`, the self-attention weights

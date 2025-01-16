@@ -1,5 +1,11 @@
 
+
 import torch
+from torch.nn.functional import rms_norm, fast_gelu, swiglu
+
+from . import npu
+from . import profiler
+
 torch.cuda = torch.npu
 torch.Tensor.cuda = torch.Tensor.npu
 torch.nn.Module.cuda = torch.nn.Module.npu
@@ -39,12 +45,6 @@ def init_process_group(
 
 torch.distributed.init_process_group = init_process_group
 
-from . import npu
-from . import profiler
-from torch.nn.functional import rms_norm, fast_gelu, swiglu
-import mindspore as ms
-from mindspore import ops
-from mindspore.ops import auto_generate as gen
 
 def npu_rms_norm(x, gamma, epsilon=1e-5):
     output = rms_norm(x, gamma, epsilon)
@@ -65,7 +65,6 @@ def npu_fusion_attention(query, key, value, head_num, input_layout, pse=None, pa
 
     return (output,)
 
-adamw_opt = gen.ApplyAdamW()
 
 def npu_apply_adam_w(beta1_power, beta2_power, lr, weight_decay, beta1, beta2,
                      epsilon, grad, max_grad_norm, amsgrad, maximize, out):
@@ -78,8 +77,8 @@ def npu_apply_adam_w(beta1_power, beta2_power, lr, weight_decay, beta1, beta2,
 
 
 def npu_all_gather_base_mm(
-        input_: ms.Tensor,
-        x2: ms.Tensor,
+        input_: torch.Tensor,
+        x2: torch.Tensor,
         _: str,
         world_size: int,
         bias: None = None,
@@ -101,11 +100,11 @@ def npu_all_gather_base_mm(
 
 
 def npu_mm_reduce_scatter_base(
-        input_: ms.Tensor,
-        x2: ms.Tensor,
+        input_: torch.Tensor,
+        x2: torch.Tensor,
         _: str,
         world_size: int,
-        reduce_op: str = ops.ReduceOp.SUM,
+        # reduce_op: str = ops.ReduceOp.SUM,
         bias: None = None,
         comm_turn: int = 0,
     ) -> None:

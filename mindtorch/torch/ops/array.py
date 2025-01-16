@@ -108,7 +108,7 @@ def permute(input, dims):
 
 # reshape
 def reshape(input, *shape):
-    if isinstance(shape[0], tuple):
+    if isinstance(shape[0], (tuple, list)):
         shape = shape[0]
     return execute('reshape', input, shape)
 

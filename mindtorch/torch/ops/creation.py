@@ -148,7 +148,7 @@ def empty(*size, out=None, dtype=None, layout=None, device=None, requires_grad=F
         dtype = get_default_dtype()
     if device is None:
         device = get_default_device()
-    if isinstance(size[0], tuple):
+    if isinstance(size[0], (tuple, list)):
         size = size[0]
 
     output = execute('empty', size, dtype, device=device, requires_grad=requires_grad, user_created=True)

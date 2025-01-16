@@ -148,6 +148,7 @@ class Tensor(metaclass=TensorMeta):
             self._retain_grad = True
 
     def attach_grad(self):
+        print('attach_grad')
         weak_self = weakref.ref(self)
         def hook(grad):
             param = weak_self()
@@ -155,7 +156,7 @@ class Tensor(metaclass=TensorMeta):
                 if param.grad is None:
                     param.grad = Tensor((grad * 1).stub, device=param.device)
                 else:
-                    param.grad += Tensor((grad * 1).stub, deivce=param.device)
+                    param.grad += Tensor((grad * 1).stub, device=param.device)
             return grad
         self.attach_grad_hook = self.register_hook(hook)
 
@@ -2333,8 +2334,8 @@ def tensor(data, *, dtype=None, device=None, requires_grad=False):
         return Tensor(data)
     data = MSTensor(data, dtype=dtype)
     tensor = Tensor(data).to(device)
-    tensor.requires_grad_(requires_grad)
     tensor._user_created = True
+    tensor.requires_grad_(requires_grad)
     return tensor
 
 def is_tensor(x):

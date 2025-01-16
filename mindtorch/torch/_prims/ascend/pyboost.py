@@ -182,3 +182,9 @@ def rms_norm_npu(*args):
     return pyboost_rms_norm(rms_norm_op, args)
 
 __all__.append('rms_norm_npu')
+
+flash_attention_score_op = Primitive('FlashAttentionScore').set_device('Ascend')
+def flash_attention_score_npu(*args):
+    return pyboost_flash_attention_score(flash_attention_score_op, args)
+
+__all__.append('flash_attention_score_npu')

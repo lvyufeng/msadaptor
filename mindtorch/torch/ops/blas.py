@@ -61,7 +61,7 @@ def dot(input, other):
 
 # matmul
 def matmul(input, other):
-    return execute('matmul', input, other)
+    return execute('matmul_ext', input, other)
 
 # matrix_power
 

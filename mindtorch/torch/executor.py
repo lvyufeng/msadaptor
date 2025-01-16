@@ -1,4 +1,6 @@
+import mindspore
 from mindspore._c_expression import TensorNode, SequenceNode, NoneTypeNode, AnyTypeNode, Tensor as MSTensor
+import mindspore.common._stub_tensor
 from mindspore.common.api import _pynative_executor
 from mindspore.common._stub_tensor import _convert_python_data
 
@@ -25,6 +27,7 @@ def _convert_stub(stub, device):
 
 
 def execute(func_name, *args, **kwargs):
+    assert not any([isinstance(arg, mindspore.common._stub_tensor.StubTensor) for arg in args])
     requires_grad = kwargs.pop('requires_grad', None)
     user_created = kwargs.pop('user_created', False)
     if requires_grad is None:

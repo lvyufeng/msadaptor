@@ -713,6 +713,7 @@ def getitem(self, slice_spec):
         slice_spec = _as_spec_tuple(slice_spec)
 
     result_t = _slice_helper(self, slice_spec)
+    print(result_t)
     return result_t
 
 def setitem(a, slice_spec, updates):

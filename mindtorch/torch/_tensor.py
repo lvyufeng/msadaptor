@@ -2324,13 +2324,12 @@ class Tensor(metaclass=TensorMeta):
     def detach(self):
         out = self.data
         out._requires_grad = False
-        return self
+        return out
 
     # Tensor.detach_
     def detach_(self):
-        out = torch.stop_gradient(self)
-        self._requires_grad = False
-        self.data = out
+        self.requires_grad_(self)
+        return self
 
     def stub_sync(self):
         if self.stub:

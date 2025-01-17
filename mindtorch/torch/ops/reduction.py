@@ -42,7 +42,7 @@ def any(input, dim=None, keepdim=False):
 def max(input, dim=None, keepdim=False, *, out=None):
     if dim is None and not keepdim:
         return execute('max', input)
-    output, indices = execute('argmax_with_value', input, dim, keepdim)
+    indices, output = execute('argmax_with_value', input, dim, keepdim)
     if out is None:
         return output, indices
     out[0].data = output
@@ -53,7 +53,7 @@ def max(input, dim=None, keepdim=False, *, out=None):
 def min(input, dim=None, keepdim=False, *, out=None):
     if dim is None and not keepdim:
         return execute('min', input)
-    output, indices = execute('argmin_with_value', input, dim, keepdim)
+    indices, output = execute('argmin_with_value', input, dim, keepdim)
     if out is None:
         return output, indices
     out[0].data = output

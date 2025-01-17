@@ -27,7 +27,6 @@ def _convert_stub(stub, device):
 
 
 def execute(func_name, *args, **kwargs):
-    assert not any([isinstance(arg, mindspore.common._stub_tensor.StubTensor) for arg in args])
     requires_grad = kwargs.pop('requires_grad', None)
     user_created = kwargs.pop('user_created', False)
     if requires_grad is None:

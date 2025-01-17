@@ -121,9 +121,7 @@ class Tensor(metaclass=TensorMeta):
     @data.setter
     def data(self, other):
         if isinstance(other, Tensor):
-            self.stub = other.stub
-            self.tensor = other.tensor
-            self.device = other.device
+            self._data.assign_value_cpp(other._data)
         else:
             raise ValueError(f'not support set type {type(other)} to Tensor.data')
 
@@ -1258,7 +1256,9 @@ class Tensor(metaclass=TensorMeta):
 
 
     # Tensor.is_sparse
-
+    @property
+    def is_sparse(self):
+        return False
 
     # Tensor.istft
 

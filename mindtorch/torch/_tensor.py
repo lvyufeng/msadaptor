@@ -116,7 +116,7 @@ class Tensor(metaclass=TensorMeta):
 
     @property
     def data(self):
-        return Tensor(self._data, device=self.device)
+        return Tensor(MSTensor(self._data), device=self.device)
 
     @data.setter
     def data(self, other):
@@ -278,7 +278,7 @@ class Tensor(metaclass=TensorMeta):
         return torch.pow(self, other)
 
     def __rpow__(self, other):
-        return torch.pow(self, other)
+        return torch.pow(other, self)
 
     def __sub__(self, other):
         return torch.sub(self, other)

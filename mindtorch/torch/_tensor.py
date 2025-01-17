@@ -2054,8 +2054,6 @@ class Tensor(metaclass=TensorMeta):
         if self.device == device:
             return self
         else:
-            if self.device.type == 'cpu':
-                self._data.data_sync(True)
             device_str = device_map[device.type]
             data = self._data.move_to(device_str, blocking=not non_blocking)
             out = Tensor(data, device=device)

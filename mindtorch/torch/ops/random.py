@@ -50,7 +50,6 @@ def normal(mean=0.0, std=1.0, *, size=None, generator=None, out=None,
     is_mean_tensor = isinstance(mean, torch.Tensor)
     is_std_tensor = isinstance(std, torch.Tensor)
 
-    print(device)
     if device.type == 'cpu':
         if is_mean_tensor and is_std_tensor:
             size = (mean * std).shape

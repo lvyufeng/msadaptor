@@ -9,6 +9,8 @@ from ..configs import GENERATOR_SEED
 from mindspore._c_expression import Cell_
 from .grad_mode import no_grad
 
+import torch
+
 grad_ = GradOperation(False, True, False)
 grad_sens_ = GradOperation(False, True, True)
 grad_input_sens_ = GradOperation(True, False, True)
@@ -111,7 +113,7 @@ class Function(Cell_):
         return self.forward(*args, **kwargs)
 
     def bprop(self, *args, **kwargs):
-        args = (args[-1],)
+        args = (torch.Tensor(args[-1].stub),)
         args = (self,) + args
         return self.backward(*args, **kwargs)
 

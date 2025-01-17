@@ -137,18 +137,18 @@ class Tensor(metaclass=TensorMeta):
             raise RuntimeError('only Tensors of floating point and complex dtype can require gradients')
         self._requires_grad = requires_grad
         if requires_grad:
-            if self.tensor is not None:
-                if self.tensor.param_info is None:
-                    self.tensor.param_info = ParamInfo()
-                    self.tensor.param_info.name = str(uuid.uuid4())
-                self.tensor.param_info.requires_grad = requires_grad
-            if self.is_leaf and not hasattr(self, 'attach_grad_hook'):
-                self.attach_grad()
-                self._retain_grad = True
+            if self.is_leaf:
+                if self._data.param_info is None:
+                    self._data.param_info = ParamInfo()
+                    self._data.param_info.name = str(uuid.uuid4())
+                self._data.param_info.requires_grad = requires_grad
+                if not hasattr(self, 'attach_grad_hook'):
+                    self.attach_grad()
+                    self._retain_grad = True
         else:
-            if self.tensor is not None:
-                if self.tensor.param_info is not None:
-                    self.tensor.param_info.requires_grad = requires_grad
+            if self.is_leaf:
+                if self._data.param_info is not None:
+                    self._data.param_info = None
             if hasattr(self, 'attach_grad_hook'):
                 # TODO: remove handle
                 pass
@@ -2322,7 +2322,8 @@ class Tensor(metaclass=TensorMeta):
 
     # Tensor.detach
     def detach(self):
-        self.requires_grad = False
+        out = self.data
+        out._requires_grad = False
         return self
 
     # Tensor.detach_

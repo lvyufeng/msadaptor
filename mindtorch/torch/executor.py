@@ -41,7 +41,10 @@ def execute(func_name, *args, **kwargs):
     out_list = out_tensor if isinstance(out_tensor, tuple) else [out_tensor]
     for tensor in out_list:
         if torch.is_tensor(tensor):
-            tensor._requires_grad = requires_grad
             tensor._user_created = user_created
+            if user_created:
+                tensor.requires_grad_(requires_grad) # attach grad to Tensor automatically
+            else:
+                tensor._requires_grad = requires_grad
     return out_tensor
 

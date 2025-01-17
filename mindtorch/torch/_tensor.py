@@ -112,9 +112,7 @@ class Tensor(metaclass=TensorMeta):
 
     @property
     def _data(self):
-        if self.tensor is not None:
-            return self.tensor
-        return self.stub.get_value()
+        return self.stub_sync()
 
     @property
     def data(self):
@@ -138,17 +136,24 @@ class Tensor(metaclass=TensorMeta):
         if not isinstance(self.dtype, (typing.Float, typing.BFloat)) and requires_grad:
             raise RuntimeError('only Tensors of floating point and complex dtype can require gradients')
         self._requires_grad = requires_grad
-        if self.tensor is not None and requires_grad:
-            if self.tensor.param_info is None:
-                self.tensor.param_info = ParamInfo()
-                self.tensor.param_info.name = str(uuid.uuid4())
-            self.tensor.param_info.requires_grad = requires_grad
-        if requires_grad and self.is_leaf and not hasattr('self', 'attach_grad_hook'):
-            self.attach_grad()
-            self._retain_grad = True
+        if requires_grad:
+            if self.tensor is not None:
+                if self.tensor.param_info is None:
+                    self.tensor.param_info = ParamInfo()
+                    self.tensor.param_info.name = str(uuid.uuid4())
+                self.tensor.param_info.requires_grad = requires_grad
+            if self.is_leaf and not hasattr(self, 'attach_grad_hook'):
+                self.attach_grad()
+                self._retain_grad = True
+        else:
+            if self.tensor is not None:
+                if hasattr(self.tensor, 'param_info'):
+                    self.tensor.param_info.requires_grad = requires_grad
+            if hasattr(self, 'attach_grad_hook'):
+                # TODO: remove handle
+                pass
 
     def attach_grad(self):
-        print('attach_grad')
         weak_self = weakref.ref(self)
         def hook(grad):
             param = weak_self()
@@ -2317,7 +2322,8 @@ class Tensor(metaclass=TensorMeta):
 
     # Tensor.detach
     def detach(self):
-        return torch.stop_gradient(self)
+        self.requires_grad = False
+        return self
 
     # Tensor.detach_
     def detach_(self):
@@ -2326,7 +2332,10 @@ class Tensor(metaclass=TensorMeta):
         self.data = out
 
     def stub_sync(self):
-        return self._data
+        if self.stub:
+            self.tensor = self.stub.get_value()
+            self.stub = None
+        return self.tensor
 
 def tensor(data, *, dtype=None, device=None, requires_grad=False):
     if isinstance(data, Tensor):

@@ -506,7 +506,8 @@ def square(input):
 
 # sub
 def sub(input, other, *, alpha=1, out=None):
-    if input.device.type == 'cpu':
+    device = getattr(input, 'device', None) or getattr(other, 'device', None)
+    if device.type == 'cpu':
         output = execute("sub", input, alpha * other)
     output = execute("sub_ext", input, other, alpha)
     if out is None:

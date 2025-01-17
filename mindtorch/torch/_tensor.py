@@ -147,7 +147,7 @@ class Tensor(metaclass=TensorMeta):
                 self._retain_grad = True
         else:
             if self.tensor is not None:
-                if hasattr(self.tensor, 'param_info'):
+                if self.tensor.param_info is not None:
                     self.tensor.param_info.requires_grad = requires_grad
             if hasattr(self, 'attach_grad_hook'):
                 # TODO: remove handle

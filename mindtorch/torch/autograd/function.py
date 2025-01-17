@@ -110,10 +110,17 @@ class Function(Cell_):
     def construct(self, *args, **kwargs):
         self.needs_input_grad = [input_.requires_grad if hasattr(input_, 'requires_grad') else False for input_ in args]
         args = (self,) + args
-        return self.forward(*args, **kwargs)
+        outputs = self.forward(*args, **kwargs)
+        self.device = outputs[0].device if isinstance(outputs, tuple) else outputs.device
+        return outputs
 
     def bprop(self, *args, **kwargs):
-        args = (torch.Tensor(args[-1].stub),)
+        grads = args[-1]
+        if isinstance(grads, tuple):
+            grads = (torch.Tensor(grad.stub, device=self.device) for grad in grads)
+        else:
+            grads = torch.Tensor(grads.stub, device=self.device)
+        args = (grads,)
         args = (self,) + args
         return self.backward(*args, **kwargs)
 

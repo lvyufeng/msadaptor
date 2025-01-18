@@ -2059,6 +2059,7 @@ class Tensor(metaclass=TensorMeta):
             return self
         else:
             device_str = device_map[device.type]
+            self._data.data_sync(True)
             data = self._data.move_to(device_str, blocking=not non_blocking)
             out = Tensor(data, device=device)
             out.requires_grad_(self.requires_grad)

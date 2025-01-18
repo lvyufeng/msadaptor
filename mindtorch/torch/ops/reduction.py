@@ -42,6 +42,8 @@ def any(input, dim=None, keepdim=False):
 def max(input, dim=None, keepdim=False, *, out=None):
     if dim is None and not keepdim:
         return execute('max', input)
+    if torch.is_tensor(dim):
+        return torch.maximum(input, dim)
     indices, output = execute('argmax_with_value', input, dim, keepdim)
     if out is None:
         return output, indices
@@ -53,6 +55,8 @@ def max(input, dim=None, keepdim=False, *, out=None):
 def min(input, dim=None, keepdim=False, *, out=None):
     if dim is None and not keepdim:
         return execute('min', input)
+    if torch.is_tensor(dim):
+        return torch.minimum(input, dim)
     indices, output = execute('argmin_with_value', input, dim, keepdim)
     if out is None:
         return output, indices

@@ -231,6 +231,10 @@ class Tensor(metaclass=TensorMeta):
     def __format__(self, format_spec):
         return np.ndarray.__format__(self.numpy(), format_spec)
 
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]
+
     def __getitem__(self, slices):
         if self.device.type == 'cpu':
             return torch.getitem(self, slices)

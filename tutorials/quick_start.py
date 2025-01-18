@@ -144,10 +144,12 @@ optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
 #######################################################################
 # In a single training loop, the model makes predictions on the training dataset (fed to it in batches), and
 # backpropagates the prediction error to adjust the model's parameters.
+import time
 def train(dataloader, model, loss_fn, optimizer):
     size = len(dataloader.dataset)
     model.train()
     for batch, (X, y) in enumerate(dataloader):
+        s = time.time()
         X, y = X.to(device), y.to(device)
         # Compute prediction error
         with torch.autograd.GradientTape() as tape:
@@ -159,10 +161,15 @@ def train(dataloader, model, loss_fn, optimizer):
 
         optimizer.step()
         optimizer.zero_grad()
+        t = time.time()
+        print(t - s)
+        print(loss)
         if batch % 100 == 0:
             loss, current = loss.item(), (batch + 1) * len(X)
             print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
 
+        if batch == 100:
+            break
 ##############################################################################
 # We also check the model's performance against the test dataset to ensure it is learning.
 
@@ -185,6 +192,25 @@ def test(dataloader, model, loss_fn):
 # The training process is conducted over several iterations (*epochs*). During each epoch, the model learns
 # parameters to make better predictions. We print the model's accuracy and loss at each epoch; we'd like to see the
 # accuracy increase and the loss decrease with every epoch.
+
+import cProfile
+import pstats
+from io import StringIO
+
+# 分析函数性能
+profiler = cProfile.Profile()
+profiler.enable()  # 开始性能分析
+train(train_dataloader, model, loss_fn, optimizer)
+profiler.disable()  # 停止性能分析
+
+# 输出结果
+s = StringIO()
+ps = pstats.Stats(profiler, stream=s).sort_stats('cumulative')
+ps.print_stats()
+print(s.getvalue())
+
+
+exit()
 
 epochs = 5
 for t in range(epochs):

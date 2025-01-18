@@ -700,7 +700,6 @@ def _as_spec_tuple(slice_spec):
     return (slice_spec,)
 
 def getitem(self, slice_spec):
-    self._data.data_sync(True)
     if (
         isinstance(slice_spec, bool)
         or (
@@ -714,7 +713,6 @@ def getitem(self, slice_spec):
         slice_spec = _as_spec_tuple(slice_spec)
 
     result_t = _slice_helper(self, slice_spec)
-    result_t._data.data_sync(True)
     return result_t
 
 def setitem(a, slice_spec, updates):

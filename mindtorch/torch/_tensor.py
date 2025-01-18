@@ -1754,8 +1754,8 @@ class Tensor(metaclass=TensorMeta):
         return torch.tile(self, repeats)
 
     # Tensor.repeat_interleave
-    def repeat_interleave(self, repeats):
-        return torch.repeat_interleave(self, repeats)
+    def repeat_interleave(self, repeats, dim=None):
+        return torch.repeat_interleave(self, repeats, dim)
 
     # Tensor.reshape
     def reshape(self, *shape):

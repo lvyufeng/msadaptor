@@ -120,15 +120,11 @@ def _has_compatible_shallow_copy_type(tensor, other):
         bool: True if `tensor` and `other` have compatible types for shallow copy.
     """
     # Check if both tensors have the same type
-    if type(tensor) is not type(other):
+    if not is_tensor(tensor) or not is_tensor(other):
         return False
 
     # Check if both tensors are on the same device
-    if tensor.device != other.device:
-        return False
-
-    # Check if both tensors have the same dtype
-    if tensor.dtype != other.dtype:
+    if tensor.shape != other.shape:
         return False
 
     # Compatibility confirmed

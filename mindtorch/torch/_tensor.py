@@ -823,7 +823,7 @@ class Tensor(metaclass=TensorMeta):
 
     # Tensor.data_ptr
     def data_ptr(self):
-        return self._data.data_ptr()
+        return self._data._data_ptr()
 
     # Tensor.deg2rad
     def deg2rad(self):

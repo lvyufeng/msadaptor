@@ -121,7 +121,10 @@ class Tensor(metaclass=TensorMeta):
     @data.setter
     def data(self, other):
         if isinstance(other, Tensor):
-            self._data.assign_value_cpp(other._data)
+            if self.stub is not None and other.stub is not None:
+                self.stub = other.stub
+            else:
+                self._data.assign_value_cpp(other._data)
             self.device = other.device
         else:
             raise ValueError(f'not support set type {type(other)} to Tensor.data')

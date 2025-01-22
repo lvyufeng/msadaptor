@@ -103,7 +103,7 @@ def uniform_(input, *args, **kwargs):
     if input.device.type == 'npu':
         execute("inplace_uniform", input, from_, to_, seed, offset)
     elif input.device.type == 'cpu':
-        input.data = rand(input.shape, generator=generator_) * (to_ - from_) + from_
+        input.data = rand(input.shape, generator=generator_, dtype=input.dtype) * (to_ - from_) + from_
     return input
 
 

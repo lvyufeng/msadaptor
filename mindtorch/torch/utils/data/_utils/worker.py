@@ -11,6 +11,11 @@ import random
 from dataclasses import dataclass
 from typing import Optional, TYPE_CHECKING, Union
 
+try:
+    from mindspore._c_expression import disable_multi_thread
+except:
+    disable_multi_thread = None
+
 import torch
 from torch._utils import ExceptionWrapper
 import torch.configs
@@ -255,7 +260,8 @@ def _worker_loop(
         # signal_handling._set_worker_signal_handlers()
 
         # torch.multiprocessing._set_thread_name("pt_data_worker")
-
+        if disable_multi_thread is not None:
+            disable_multi_thread()
         # torch.set_num_threads(1)
         seed = base_seed + worker_id
         random.seed(seed)

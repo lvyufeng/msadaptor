@@ -78,35 +78,6 @@ def normal(mean=0.0, std=1.0, *, size=None, generator=None, out=None,
     out.data = output
     return out
 
-
-# uniform_
-def uniform_(input, *args, **kwargs):
-    if len(args) == 1:
-        from_ = args[0]
-        to_ = None
-    elif len(args) == 2:
-        from_ = args[0]
-        to_ = args[1]
-    elif len(args) == 3:
-        from_ = args[0]
-        to_ = args[1]
-    else:
-        from_ = 0
-        to_ = 1
-
-    from_ = kwargs.get("from", 0) if from_ is None else from_
-    # to_ = kwargs.get("to", 1)
-    generator_ = kwargs.get("generator", None)
-    if generator_ is None:
-        generator_ = default_generator
-    seed, offset = default_generator._step(generator_step_)
-    if input.device.type == 'npu':
-        execute("inplace_uniform", input, from_, to_, seed, offset)
-    elif input.device.type == 'cpu':
-        input.data = rand(input.shape, generator=generator_, dtype=input.dtype) * (to_ - from_) + from_
-    return input
-
-
 # poisson
 
 
@@ -374,5 +345,4 @@ __all__ = [
     "randn_like",
     "randperm",
     "randint_like",
-    "uniform_"
 ]

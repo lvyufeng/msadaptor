@@ -1632,7 +1632,7 @@ class Tensor(metaclass=TensorMeta):
 
     # Tensor.normal_
     def normal_(self, mean=0, std=1, *, generator=None):
-        return torch.normal(mean, std, generator=generator, out=self)
+        return torch.inplace_normal(self, mean, std, generator=generator)
 
     # Tensor.numpy
     def numpy(self):
@@ -2242,7 +2242,7 @@ class Tensor(metaclass=TensorMeta):
 
     # Tensor.uniform_
     def uniform_(self, *args, **kwargs):
-        return torch.uniform_(self, *args, **kwargs)
+        return torch.inplace_uniform(self, *args, **kwargs)
 
     # Tensor.random_
     def random_(self, *args, **kwargs):

@@ -438,7 +438,7 @@ class Tensor(metaclass=TensorMeta):
 
     # Tensor.add_
     def add_(self, other, *, alpha=1):
-        return self.copy_(torch.add(self, other, alpha=alpha))
+        return torch.inplace_add(self, other, alpha=alpha)
 
     # Tensor.addbmm
     def addbmm(self, batch1, batch2, *, beta=1, alpha=1):

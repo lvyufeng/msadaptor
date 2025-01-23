@@ -63,10 +63,15 @@ def inplace_uniform(input, *args, **kwargs):
         input.data = torch.rand(input.shape, generator=generator_, dtype=input.dtype) * (to_ - from_) + from_
     return input
 
+def inplace_add(input, other, alpha):
+    execute('inplace_add_ext', input, other, alpha)
+    return input
+
 __all__ = [
     'inplace_copy',
     'inplace_zero',
     'inplace_normal',
     'inplace_fill',
-    'inplace_uniform'
+    'inplace_uniform',
+    'inplace_add'
 ]

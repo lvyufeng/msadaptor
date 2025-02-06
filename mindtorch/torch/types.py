@@ -35,4 +35,4 @@ class device():
         return hash(self) == hash(__value)
 
     def __hash__(self):
-        return hash(str(self))
+        return hash(self.type) ^ hash(self.index)

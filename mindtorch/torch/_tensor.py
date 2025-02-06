@@ -2327,7 +2327,7 @@ class Tensor(metaclass=TensorMeta):
 
     # Tensor.zero_
     def zero_(self):
-        return torch.inplace_zero(self) 
+        return torch.inplace_zero(self)
 
     # Tensor.detach
     def detach(self):

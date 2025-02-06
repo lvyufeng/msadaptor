@@ -1,4 +1,5 @@
 import setuptools
+from Cython.Build import cythonize
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
@@ -27,4 +28,5 @@ setuptools.setup(
         "mindspore>=2.4",
         "requests",
     ],
+    ext_modules=cythonize("mindtorch/torch/dispatcher.pyx")
 )

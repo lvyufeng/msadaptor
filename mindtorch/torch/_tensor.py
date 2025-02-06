@@ -163,7 +163,7 @@ class Tensor(metaclass=TensorMeta):
         weak_self = weakref.ref(self)
         def hook(grad):
             param = weak_self()
-            if param._retain_grad:
+            if param is not None and param._retain_grad:
                 if param.grad is None:
                     param.grad = Tensor((grad * 1).stub, device=param.device)
                 else:

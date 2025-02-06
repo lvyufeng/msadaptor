@@ -27,23 +27,15 @@ def _convert_stub(stub, device):
 
 
 def execute(func_name, *args, **kwargs):
-    requires_grad = kwargs.pop('requires_grad', None)
+    requires_grad = kwargs.pop('requires_grad', False)
     user_created = kwargs.pop('user_created', False)
-    if requires_grad is None:
-        if isinstance(args[0], (tuple, list)):
-            requires_grad = any([arg.requires_grad for arg in args[0] if torch.is_tensor(arg)])
-        else:
-            requires_grad = any([arg.requires_grad for arg in args if torch.is_tensor(arg)])
-
     out, device = dispatcher.dispatch(func_name, *args, **kwargs)
     out_tensor = _convert_stub(out, device=device)
-    out_list = out_tensor if isinstance(out_tensor, tuple) else [out_tensor]
-    for tensor in out_list:
-        if torch.is_tensor(tensor):
-            tensor._user_created = user_created
-            if user_created:
-                tensor.requires_grad_(requires_grad) # attach grad to Tensor automatically
-            else:
-                tensor._requires_grad = requires_grad
+    if requires_grad:
+        out_tensor._requires_grad = True
+    if user_created:
+        out_tensor._user_created = True
+        out_tensor.attach_grad()
+
     return out_tensor
 

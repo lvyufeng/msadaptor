@@ -34,6 +34,8 @@ def inplace_normal(input, mean=0, std=1, *, generator=None):
         execute('inplace_normal', input, mean, std, seed, offset)
     else:
         torch.normal(mean, std, size=input.size, generator=generator, out=input)
+    
+    input._data.data_sync(True)
     return input
 
 # uniform_

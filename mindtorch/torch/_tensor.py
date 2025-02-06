@@ -1,5 +1,6 @@
 import uuid
 import weakref
+import warnings
 from copy import deepcopy
 import numpy as np
 
@@ -57,15 +58,15 @@ class Tensor(metaclass=TensorMeta):
             device = device_('cpu')
         self.device = device
 
-        if isinstance(input[0], int):
+        if isinstance(input[0], TensorNode):
+            self.stub = input[0]
+        elif isinstance(input[0], MSTensor):
+            self.tensor = input[0]
+        elif isinstance(input[0], int):
             if dtype is None:
                 dtype = mindspore.float32
             self.tensor = MSTensor(shape=input, dtype=dtype)
             self._user_created = True
-        elif isinstance(input[0], TensorNode):
-            self.stub = input[0]
-        elif isinstance(input[0], MSTensor):
-            self.tensor = input[0]
         elif isinstance(input[0], np.ndarray):
             self.tensor = MSTensor(input[0])
             self._user_created = True
@@ -131,6 +132,9 @@ class Tensor(metaclass=TensorMeta):
 
     @property
     def requires_grad(self):
+        if not _pynative_executor.requires_grad():
+            warnings.warn('`requires_grad` does not take effect when it is not within the scope of the differential function.')
+
         return self._requires_grad
 
     @requires_grad.setter
@@ -170,11 +174,7 @@ class Tensor(metaclass=TensorMeta):
     def retain_grad(self):
         if not self.requires_grad:
             raise RuntimeError("can't retain_grad on Tensor that has requires_grad=False")
-        if self.is_leaf:
-            self._retain_grad = True
-        else:
-            self._retain_grad = True
-            self.attach_grad()
+        self._retain_grad = True
 
     @property
     def shape(self):

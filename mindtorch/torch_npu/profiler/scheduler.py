@@ -5,7 +5,7 @@ class Schedule:
         self.scheduler = schedule(
             wait=wait,
             active=active,
-            warm_up=warmup,
+            warmup=warmup,
             repeat=repeat,
             skip_first=skip_first
         )

@@ -34,13 +34,18 @@ class Dispatcher(metaclass=SingletonMeta):
             device = device_(device)
 
         if device is None:
-            if isinstance(args[0], (tuple, list)):
-                devices = {arg.device for arg in args[0] if torch.is_tensor(arg)}
+            tensors = [arg for arg in args[0] if torch.is_tensor(arg)] if isinstance(args[0], (tuple, list)) else [arg for arg in args if torch.is_tensor(arg)]
+            
+            if len(tensors) == 1:
+                device = tensors[0].device
+            
             else:
-                devices = {arg.device for arg in args if torch.is_tensor(arg)}
-            if len(devices) > 1:
-                raise ValueError("All tensor arguments must be on the same device.")
-            device = next(iter(devices)) if devices else device_('cpu')
+                devices = {tensor.device for tensor in tensors}
+            
+                if len(devices) > 1:
+                    raise ValueError("All tensor arguments must be on the same device.")
+        
+                device = next(iter(devices), device_('cpu'))
 
         func = self._registry[device.type].get(func_name, None)
         if func is None:

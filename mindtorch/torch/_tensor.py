@@ -241,13 +241,24 @@ class Tensor(metaclass=TensorMeta):
 
     def __getitem__(self, slices):
         if self.device.type == 'cpu':
-            return torch.getitem(self, slices)
+            if isinstance(slices, Tensor):
+                data = self.numpy()[slices.numpy()]
+            else:
+                data = self.numpy()[slices]
+            
+            return Tensor(MSTensor(np.array(data)), device=self.device)
         return torch.tensor_getitem(self, slices)
 
     def __setitem__(self, slices, value):
         """"""
         if self.device.type == 'cpu':
-            torch.setitem(self, slices, value)
+            data = self.numpy()
+            if isinstance(value, Tensor):
+                data[slices] = value.numpy()
+            else:
+                data[slices] = value
+            
+            return Tensor(MSTensor(np.array(data)), device=self.device)
         else:
             torch.tensor_setitem(self, slices, value)
         return self

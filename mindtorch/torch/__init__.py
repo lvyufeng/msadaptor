@@ -76,7 +76,7 @@ from torch.random import get_rng_state, initial_seed, manual_seed, seed, set_rng
 from torch.serialization import load, save
 from . import optim, ops, nn, distributions, cuda, npu, distributed#, multiprocessing
 from .autograd import no_grad, enable_grad, value_and_grad
-from ._bind import get_default_dtype, set_default_dtype
+from ._bind import get_default_dtype, set_default_dtype, get_default_device
 
 
 AUTO_CAST_DTYE = {

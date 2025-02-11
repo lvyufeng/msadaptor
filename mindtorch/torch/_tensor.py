@@ -2,6 +2,7 @@ import uuid
 import weakref
 import warnings
 from copy import deepcopy
+from typing import Union
 import numpy as np
 
 import mindspore
@@ -41,9 +42,27 @@ class TensorMeta(type):
             return self == dtype_class_map[instance.dtype]
         return super().__instancecheck__(instance)
 
+Arrayable = Union[float, list, np.ndarray, mindspore.Tensor]
+
+
+def ensure_array(arrayable: Arrayable, device: device_) -> Arrayable:
+    if device.type == 'cpu':
+        if isinstance(arrayable, np.ndarray):
+            return arrayable
+        return np.array(arrayable)
+    else:
+        if isinstance(arrayable, mindspore.Tensor):
+            return arrayable
+        return mindspore.Tensor(arrayable)
+
+def make_array_from_shape(shape, dtype, device):
+    if device.type == 'cpu':
+        return np.ndarray(shape, dtype=mindspore.dtype_to_nptype(dtype))
+    else:
+        return mindspore.Tensor(shape=shape, dtype=dtype)
+
 class Tensor(metaclass=TensorMeta):
-    tensor = None
-    stub = None
+    array = None
     grad = None
 
     _base = None # notice: _base should be root Tensor when created by view class op
@@ -55,24 +74,16 @@ class Tensor(metaclass=TensorMeta):
         if hasattr(self, '_is_param') and self._is_param:
             return
         if device is None:
-            device = device_('cpu')
+            device = torch.get_default_device()
         self.device = device
-
-        if isinstance(input[0], TensorNode):
-            self.stub = input[0]
-        elif isinstance(input[0], MSTensor):
-            self.tensor = input[0]
-        elif isinstance(input[0], int):
+        if isinstance(input[0], int):
             if dtype is None:
                 dtype = mindspore.float32
-            self.tensor = MSTensor(shape=input, dtype=dtype)
+            self.array = make_array_from_shape(input, dtype, device)
             self._user_created = True
-        elif isinstance(input[0], np.ndarray):
-            self.tensor = MSTensor(input[0])
+        elif isinstance(input[0], Arrayable):
+            self.array = ensure_array(input[0], device)
             self._user_created = True
-        elif isinstance(input[0], Tensor):
-            self.tensor = input[0].tensor
-            self.stub = input[0].stub
         else:
             raise ValueError(f'not support data type {type(input[0])}')
 
@@ -112,29 +123,18 @@ class Tensor(metaclass=TensorMeta):
         return subclass_instance
 
     @property
-    def _data(self):
-        return self.stub_sync()
-
-    @property
     def data(self):
-        return Tensor(MSTensor(self._data), device=self.device)
+        return Tensor(self.array, device=self.device)
 
     @data.setter
     def data(self, other):
         if isinstance(other, Tensor):
-            if self.stub is not None and other.stub is not None:
-                self.stub = other.stub
-            else:
-                self._data.assign_value_cpp(other._data)
-            self.device = other.device
+            self.array = other.array
         else:
             raise ValueError(f'not support set type {type(other)} to Tensor.data')
 
     @property
     def requires_grad(self):
-        if not _pynative_executor.requires_grad():
-            warnings.warn('`requires_grad` does not take effect when it is not within the scope of the differential function.')
-
         return self._requires_grad
 
     @requires_grad.setter
@@ -144,17 +144,17 @@ class Tensor(metaclass=TensorMeta):
         self._requires_grad = requires_grad
         if requires_grad:
             if self.is_leaf:
-                if self._data.param_info is None:
-                    self._data.param_info = ParamInfo()
-                    self._data.param_info.name = str(uuid.uuid4())
-                self._data.param_info.requires_grad = requires_grad
+                if self.array.param_info is None:
+                    self.array.param_info = ParamInfo()
+                    self.array.param_info.name = str(uuid.uuid4())
+                self.array.param_info.requires_grad = requires_grad
                 if not hasattr(self, 'attach_grad_hook'):
                     self.attach_grad()
                     self._retain_grad = True
         else:
             if self.is_leaf:
-                if self._data.param_info is not None:
-                    self._data.param_info = None
+                if self.array.param_info is not None:
+                    self.array.param_info = None
             if hasattr(self, 'attach_grad_hook'):
                 # TODO: remove handle
                 pass
@@ -179,20 +179,12 @@ class Tensor(metaclass=TensorMeta):
     @property
     def shape(self):
         """shape stub."""
-        if self.stub:
-            if not hasattr(self, "stub_shape"):
-                self.stub_shape = self.stub.get_shape()
-            return Size(self.stub_shape)
-        return Size(self.tensor.shape)
+        return Size(self.array.shape)
 
     @property
     def dtype(self):
         """dtype stub."""
-        if self.stub:
-            if not hasattr(self, "stub_dtype"):
-                self.stub_dtype = self.stub.get_dtype()
-            return self.stub_dtype
-        return self.tensor.dtype
+        return self.array.dtype
 
     def cpu(self):
         return self.to(device_('cpu'))
@@ -215,7 +207,7 @@ class Tensor(metaclass=TensorMeta):
         size = self.shape
         stride = self.stride()
         requires_grad = False
-        args = (self._data, storage_offset, size, stride, requires_grad, None, None)
+        args = (self.array, storage_offset, size, stride, requires_grad, None, None)
         return (
             _rebuild_from_type_v2, (_rebuild_tensor_v2, type(self), args, None))
 
@@ -228,37 +220,31 @@ class Tensor(metaclass=TensorMeta):
         return self.shape[0]
 
     def __repr__(self) -> str:
-        data = self._data
+        if self.device.type == 'cpu':
+            return f"Tensor(shape={self.shape}, dtype={self.dtype}, value=\n{self.array}" + \
+                f', device={self.device})'
+
+        data = self.array
         data.data_sync(True)
         return data.__repr__()[:-1] + f', device={self.device})'
 
     def __format__(self, format_spec):
         return np.ndarray.__format__(self.numpy(), format_spec)
 
-    def __iter__(self):
-        for i in range(len(self)):
-            yield self[i]
-
     def __getitem__(self, slices):
         if self.device.type == 'cpu':
-            if isinstance(slices, Tensor):
-                data = self.numpy()[slices.numpy()]
-            else:
-                data = self.numpy()[slices]
-            
-            return Tensor(MSTensor(np.array(data)), device=self.device)
+            data = self.array[slices]
+            return Tensor(data, device=self.device)
+
         return torch.tensor_getitem(self, slices)
 
     def __setitem__(self, slices, value):
         """"""
         if self.device.type == 'cpu':
-            data = self.numpy()
             if isinstance(value, Tensor):
-                data[slices] = value.numpy()
+                self.array[slices] = value.array
             else:
-                data[slices] = value
-            
-            return Tensor(MSTensor(np.array(data)), device=self.device)
+                self.array[slices] = value
         else:
             torch.tensor_setitem(self, slices, value)
         return self
@@ -1647,7 +1633,9 @@ class Tensor(metaclass=TensorMeta):
 
     # Tensor.numpy
     def numpy(self):
-        return self._data.asnumpy()
+        if self.device.type == 'cpu':
+            raise TypeError(f"can't convert {self.device} device type tensor to numpy. Use Tensor.cpu() to copy the Tensor to host memory first.")
+        return self.array.asnumpy()
 
     def mindspore(self):
         return mindspore.Tensor(self._data)
@@ -2074,8 +2062,13 @@ class Tensor(metaclass=TensorMeta):
             return self
         else:
             device_str = device_map[device.type]
-            self._data.data_sync(True)
-            data = self._data.move_to(device_str, blocking=not non_blocking)
+            if self.device.type == 'cpu':
+                data = mindspore.Tensor(self.array)
+                data = data.move_to(device_str, blocking=not non_blocking)
+                data = mindspore.Tensor(data)
+            else:
+                data = self.array.move_to(device_str, blocking=not non_blocking)
+                data = data.asnumpy()
             out = Tensor(data, device=device)
             out.requires_grad_(self.requires_grad)
             return out
